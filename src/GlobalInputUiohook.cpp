@@ -208,11 +208,13 @@ void GlobalInputUiohook::start() {
     if (running) return;
     running = true;
 
-    std::thread([](){
+    hook_thread = std::thread([]() {
         hook_set_dispatch_proc(GlobalInputUiohook::hook_event_dispatch);
-        int res = hook_run();
-    }).detach();
+        int res = hook_run(); 
+    });
+    hook_thread.detach();
 }
+
 
 void GlobalInputUiohook::stop() {
     if (!running) return;
