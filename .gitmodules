@@ -2,3 +2,6 @@
 	path = godot-cpp
 	url = https://github.com/godotengine/godot-cpp.git
 	branch = 4.2
+[submodule "libuiohook"]
+	path = libuiohook
+	url = https://github.com/kwhat/libuiohook
