@@ -1,16 +1,22 @@
+// GlobalInputUiohook.h
 #ifndef GLOBAL_INPUT_UIOHOOK_H
 #define GLOBAL_INPUT_UIOHOOK_H
 
 #include "GlobalInputCommon.h"
 #include <memory>
 #include <mutex>
+#include <thread>
+#include <unordered_map>
 #include "uiohook.h"
 
+
+using namespace godot;
 class GlobalInputUiohook : public IGlobalInputBackend {
 public:
     void start() override;
     void stop() override;
     void increment_frame() override;
+    void poll_events();
 
     Vector2 get_mouse_position() override;
 
@@ -29,15 +35,14 @@ public:
     Dictionary get_keys_pressed_detailed() override;
     Dictionary get_keys_just_pressed_detailed() override;
     Dictionary get_keys_just_released_detailed() override;
+
     bool is_alt_pressed() override;
     bool is_ctrl_pressed() override;
     bool is_shift_pressed() override;
     bool is_meta_pressed() override;
-    bool modifiers_match(InputEvent *key_ev);
 
-
-    // New: poll events from main thread
-    void poll_events();
+    bool modifiers_match(InputEvent *ev);
+    void poll_input_loop();
 
 private:
     static std::unordered_map<int, bool> key_state;
@@ -61,6 +66,7 @@ private:
     static std::thread hook_thread;
 
     static void hook_event_dispatch(uiohook_event *event);
+    static int translate_hook_key_to_godot(uint16_t hook_code);
 };
 
 #endif // GLOBAL_INPUT_UIOHOOK_H

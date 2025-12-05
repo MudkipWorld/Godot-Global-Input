@@ -3,7 +3,7 @@
 using namespace godot;
 
 
-static int translate_hook_key_to_godot(uint16_t hook_code) {
+int GlobalInputUiohook::translate_hook_key_to_godot(uint16_t hook_code) {
     using namespace godot;
 
     switch (hook_code) {
@@ -139,9 +139,6 @@ static int translate_hook_key_to_godot(uint16_t hook_code) {
 }
 
 
-
-
-// Static member initialization
 std::unordered_map<int, bool> GlobalInputUiohook::key_state;
 std::unordered_map<int, uint64_t> GlobalInputUiohook::key_just_pressed_frame;
 std::unordered_map<int, uint64_t> GlobalInputUiohook::key_just_released_frame;
@@ -161,7 +158,6 @@ std::recursive_mutex GlobalInputUiohook::state_mutex;
 bool GlobalInputUiohook::running = false;
 std::thread GlobalInputUiohook::hook_thread;
 
-// Event dispatcher — now just called manually
 void GlobalInputUiohook::hook_event_dispatch(uiohook_event *event) {
     std::lock_guard<std::recursive_mutex> lock(GlobalInputUiohook::state_mutex);
 
@@ -219,9 +215,12 @@ void GlobalInputUiohook::start() {
 void GlobalInputUiohook::stop() {
     if (!running) return;
     running = false;
-    hook_stop();
-    if (hook_thread.joinable())
-        hook_thread.join();
+
+    hook_stop();   
+
+    if (hook_thread.joinable()) {
+        hook_thread.join(); 
+    }
 }
 
 // Hook start/stop removed — no threads

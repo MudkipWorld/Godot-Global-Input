@@ -38,7 +38,6 @@ void GlobalInputWindows::start() {
     running = true;
     init_key_map();
 
-    // Launch thread with member function
     poll_thread = std::thread(&GlobalInputWindows::poll_input, this);
 }
 
@@ -47,8 +46,11 @@ void GlobalInputWindows::stop() {
         std::lock_guard<std::recursive_mutex> lock(state_mutex);
         running = false;
     }
-    if (poll_thread.joinable()) poll_thread.join();
+
+    if (poll_thread.joinable())
+        poll_thread.join();  
 }
+
 
 void GlobalInputWindows::increment_frame() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
@@ -95,7 +97,6 @@ bool GlobalInputWindows::is_mouse_just_released(int button) {
     auto it = mouse_just_released_frame.find(button);
     return it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1;
 }
-
 
 bool GlobalInputWindows::is_action_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
@@ -161,8 +162,6 @@ bool GlobalInputWindows::is_action_just_released(const String &action_name) {
     return false;
 }
 
-
-
 #ifdef _WIN32
 bool GlobalInputWindows::is_shift_pressed() {
     return is_key_pressed(VK_SHIFT) || is_key_pressed(VK_LSHIFT) || is_key_pressed(VK_RSHIFT) ||  is_key_pressed(KEY_SHIFT);
@@ -180,7 +179,6 @@ bool GlobalInputWindows::is_meta_pressed() {
     return is_key_pressed(VK_LWIN) || is_key_pressed(VK_RWIN) || is_key_pressed(KEY_META);
 }
 #endif
-
 
 bool GlobalInputWindows::modifiers_match(InputEvent *ev) {
     bool ev_shift = false;
@@ -223,9 +221,6 @@ bool GlobalInputWindows::modifiers_match(InputEvent *ev) {
 
     return true;
 }
-
-
-
 
 Dictionary GlobalInputWindows::get_keys_pressed_detailed() {
     Dictionary dict;

@@ -11,6 +11,7 @@
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
+#include <godot_cpp/classes/object.hpp>
 #include <unordered_set>
 #include <unordered_map>
 #include <thread>
@@ -18,7 +19,7 @@
 using namespace godot;
 
 
-class IGlobalInputBackend {
+class IGlobalInputBackend : public RefCounted{
 public:
     virtual ~IGlobalInputBackend() = default;
     virtual void start() = 0;

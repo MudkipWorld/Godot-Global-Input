@@ -5,6 +5,8 @@
 #include "godot_cpp/classes/node.hpp"
 #include "godot_cpp/core/class_db.hpp"
 #include <memory>
+#include <godot_cpp/classes/ref.hpp>
+
 
 using namespace godot;
 
@@ -37,6 +39,8 @@ public:
     void start_hook();
     void stop_hook();
     void set_use_physics_frames(bool p_use) { use_physics_frames = p_use; }
+    bool get_use_physics_frames() const { return use_physics_frames; }
+
 
     void _process(double delta) override;
     void _physics_process(double delta) override;
@@ -80,7 +84,7 @@ private:
     };
 
     BackendType active_backend = BACKEND_AUTO;
-    std::unique_ptr<IGlobalInputBackend> backend;
+    Ref<IGlobalInputBackend> backend;
 
     static bool hook_started;
     static uint64_t current_frame;
