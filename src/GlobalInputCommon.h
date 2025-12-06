@@ -1,6 +1,7 @@
 #ifndef GLOBAL_INPUT_COMMON_H
 #define GLOBAL_INPUT_COMMON_H
 
+
 #include <godot_cpp/classes/input_map.hpp>
 #include <godot_cpp/classes/input_event_key.hpp>
 #include <godot_cpp/classes/input_event_mouse_button.hpp>

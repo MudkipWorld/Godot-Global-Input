@@ -1,8 +1,5 @@
 #include "GlobalInput.h"
-#include "GlobalInputUiohook.h"
-#ifdef _WIN32
-#include "GlobalInputWindows.h"
-#endif
+
 #include <thread>
 
 using namespace godot;
@@ -51,7 +48,7 @@ ClassDB::bind_method(D_METHOD("set_use_physics_frames", "enabled"), &GlobalInput
 ClassDB::bind_method(D_METHOD("get_use_physics_frames"), &GlobalInput::get_use_physics_frames);
 
 
-    ADD_PROPERTY(PropertyInfo(Variant::STRING, "backend", PROPERTY_HINT_ENUM, "default,uiohook,windows"),
+    ADD_PROPERTY(PropertyInfo(Variant::STRING, "backend", PROPERTY_HINT_ENUM, "default,uiohook,windows,x11"),
                  "set_backend", "get_backend");
 
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_physics_frames"), 
@@ -79,6 +76,15 @@ void GlobalInput::set_backend(const String &backend_name) {
         active_backend = BACKEND_WINDOWS;
     } else
 #endif
+
+
+#ifdef __linux__
+    if (selected_backend == "x11") {
+        backend = Ref<GlobalInputX11>(memnew(GlobalInputX11));
+        active_backend = BACKEND_X11;
+    } else
+#endif
+
     if (selected_backend == "uiohook") {
         backend = Ref<GlobalInputUiohook>(memnew(GlobalInputUiohook));
         active_backend = BACKEND_UIOHOOK;
@@ -103,6 +109,14 @@ void GlobalInput::start_hook() {
         active_backend = BACKEND_WINDOWS;
     } else
 #endif
+
+#ifdef __linux__
+    if (selected_backend == "x11") {
+        backend = Ref<GlobalInputX11>(memnew(GlobalInputX11));
+        active_backend = BACKEND_X11;
+    } else
+#endif
+
     {
         backend = Ref<GlobalInputUiohook>(memnew(GlobalInputUiohook));
         active_backend = BACKEND_UIOHOOK;

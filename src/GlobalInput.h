@@ -2,6 +2,16 @@
 #define GLOBAL_INPUT_H
 #pragma once
 #include "GlobalInputCommon.h"
+
+#include "GlobalInputUiohook.h"
+#ifdef _WIN32
+#include "GlobalInputWindows.h"
+#endif
+
+#ifdef __linux__
+#include "GlobalInputsx11.h"
+#endif
+
 #include "godot_cpp/classes/node.hpp"
 #include "godot_cpp/core/class_db.hpp"
 #include <memory>
@@ -80,7 +90,8 @@ private:
     enum BackendType {
         BACKEND_AUTO = 0,
         BACKEND_UIOHOOK,
-        BACKEND_WINDOWS
+        BACKEND_WINDOWS,
+        BACKEND_X11,
     };
 
     BackendType active_backend = BACKEND_AUTO;

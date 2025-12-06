@@ -11,7 +11,6 @@
 #include <X11/extensions/XInput2.h>
 #include <X11/extensions/record.h>
 #include <X11/XKBlib.h>
-#include <linux/input.h>
 #include <fcntl.h>
 #include <unistd.h>
 #endif
@@ -77,8 +76,7 @@ private:
 
 #ifdef __linux__
     Display *display = nullptr;
-    Window root_window = 0;
-
+    ::Window root_window = 0;
     int keyboard_fd = -1;
     int mice_fd = -1;
 #endif

@@ -392,14 +392,9 @@ void GlobalInputWindows::init_key_map() {
 	vk_to_godot[VK_MULTIPLY] = KEY_KP_MULTIPLY;
 	vk_to_godot[VK_DIVIDE] = KEY_KP_DIVIDE;
 	vk_to_godot[VK_DECIMAL] = KEY_KP_PERIOD;
-
-	// Letters (these map out to the same as Godot)
 	for (int i = KEY_A; i <= KEY_Z; i++) vk_to_godot[i] = i;
 
-	// Numbers (these also map out to the same as Godot)
 	for (int i = KEY_0; i <= KEY_9; i++) vk_to_godot[i] = i;
-
-	// Regional vk_to_godot
 	vk_to_godot[VK_OEM_1] = KEY_SEMICOLON;
 	vk_to_godot[VK_OEM_2] = KEY_SLASH;
 	vk_to_godot[VK_OEM_3] = KEY_ASCIITILDE;
@@ -411,8 +406,6 @@ void GlobalInputWindows::init_key_map() {
 	vk_to_godot[VK_OEM_COMMA] = KEY_COMMA;
 	vk_to_godot[VK_OEM_MINUS] = KEY_MINUS;
 	vk_to_godot[VK_OEM_PERIOD] = KEY_PERIOD;
-
-	// Mouse buttons
 	vk_to_godot[VK_LBUTTON] = MOUSE_BUTTON_LEFT;
 	vk_to_godot[VK_RBUTTON] = MOUSE_BUTTON_RIGHT;
 	vk_to_godot[VK_MBUTTON] = MOUSE_BUTTON_MIDDLE;

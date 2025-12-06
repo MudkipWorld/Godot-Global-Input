@@ -2,73 +2,64 @@ import os
 import sys
 from SCons.Script import *
 
-# ----------------- Config -----------------
-platform = ARGUMENTS.get("platform", sys.platform)  # 'windows' or 'linux'
-build_type = ARGUMENTS.get("build", "debug")        # 'debug' or 'release'
+platform = ARGUMENTS.get("platform", sys.platform)
+build_type = ARGUMENTS.get("build", "debug")
 
 godot_cpp_path = "../godot-cpp"
 libuiohook_path = "../libuiohook"
 libuiohook_path_linux = "../libuiohookLinux"
+libuiohook_path_macos = "../libuiohookMac"
 
 sources = [
     "GlobalInput.cpp",
     "register_types.cpp",
     "GlobalInputUiohook.cpp",
-    "GlobalInputWindows.cpp"
+    "GlobalInputWindows.cpp",
+    "GlobalInputsx11.cpp"
+
 ]
 
-# ----------------- Utilities -----------------
 def fixpath(p):
-    """Normalize path to use forward slashes (MSYS-safe)."""
     return os.path.abspath(p).replace("\\", "/")
 
-# ----------------- Detect Host OS -----------------
 host_platform = sys.platform.lower()
 is_wsl = "microsoft" in os.uname().release.lower() if hasattr(os, "uname") else False
 output_dir = ""
 
-# ----------------- Select Compiler Automatically -----------------
 if platform.startswith("win"):
     if host_platform.startswith("win"):
-        # Native Windows build
         cxx = "g++"
         cc = "gcc"
     else:
-        # Cross-compile on Linux/WSL → Windows
         cxx = "x86_64-w64-mingw32-g++"
         cc = "x86_64-w64-mingw32-gcc"
 elif platform.startswith("linux"):
     cxx = "g++"
     cc = "gcc"
+elif platform.startswith("mac"):
+    cxx = "o64-clang++"
+    cc = "o64-clang"
 else:
     print(f"Unsupported target platform: {platform}")
     Exit(1)
 
 print(f"Host: {host_platform}, Target: {platform}, Using compiler: {cxx}")
 
-
-env = Environment(tools=["mingw", "default"])
+env = Environment(tools=["default"])
 env["CXX"] = cxx
 env["CC"] = cc
-env["ENV"]["PATH"] = os.environ["PATH"]  # Inherit system path (important for MSYS)
+env["ENV"]["PATH"] = os.environ["PATH"]
 env["ENV"]["PWD"] = os.getcwd()
 
-# ----------------- Windows Target -----------------
 if platform.startswith("win"):
     env = Environment(tools=["mingw"])
     mingw_bin_path = os.environ.get("MINGW_BIN", "C:/msys64/ucrt64/bin")
     output_dir = "bin/windows"
     os.makedirs(output_dir, exist_ok=True)
 
-    lib_suffix = (
-        "windows.template_debug.x86_64"
-        if build_type == "debug"
-        else "windows.template_release.x86_64"
-    )
-
+    lib_suffix = "windows.template_debug.x86_64" if build_type == "debug" else "windows.template_release.x86_64"
     env["SHLIBSUFFIX"] = ".dll"
 
-    # ----------------- Include / Library paths -----------------
     env.Append(CPPPATH=[
         f"{godot_cpp_path}/include",
         f"{godot_cpp_path}/include/godot_cpp",
@@ -85,7 +76,7 @@ if platform.startswith("win"):
 
     env.Append(LIBS=[
         f"godot-cpp.{lib_suffix}",
-        "uiohook",   # <-- this tells g++ to link libuiohook.dll.a
+        "uiohook",
         "user32",
         "winpthread"
     ])
@@ -94,9 +85,6 @@ if platform.startswith("win"):
     env.Append(CPPDEFINES=["NOMINMAX"])
     env.Append(LINKFLAGS=["-shared"])
 
-
-
-    # Copy runtime DLLs
     required_dlls = ["libstdc++-6.dll", "libgcc_s_seh-1.dll", "libwinpthread-1.dll"]
     for dll in required_dlls:
         src_path = os.path.join(mingw_bin_path, dll)
@@ -104,21 +92,15 @@ if platform.startswith("win"):
         if os.path.isfile(src_path):
             env.Execute(Copy(dst_path, src_path))
 
-    # Copy libuiohook.dll
     libuiohook_src = os.path.join(fixpath(libuiohook_path), "lib", "libuiohook.dll")
     libuiohook_dst = os.path.join(output_dir, "libuiohook.dll")
     env.Command(target=libuiohook_dst, source=libuiohook_src, action=Copy("$TARGET", "$SOURCE"))
 
-# ----------------- Linux Target -----------------
 elif platform.startswith("linux"):
     output_dir = "bin/linux"
     os.makedirs(output_dir, exist_ok=True)
 
-    lib_suffix = (
-        "linux.template_debug.x86_64"
-        if build_type == "debug"
-        else "linux.template_release.x86_64"
-    )
+    lib_suffix = "linux.template_debug.x86_64" if build_type == "debug" else "linux.template_release.x86_64"
 
     env.Append(CPPPATH=[
         f"{fixpath(godot_cpp_path)}/include",
@@ -145,18 +127,51 @@ elif platform.startswith("linux"):
         "-Wl,-rpath,/usr/lib/x86_64-linux-gnu",
         "-Wl,-rpath,'$ORIGIN'"
     ])
+
     env.Append(CXXFLAGS=["-std=c++17", "-O2", "-fPIC"])
 
-    # Copy libuiohook.so
     libuiohook_src = os.path.join(fixpath(libuiohook_path_linux), "lib", "libuiohook.so")
     libuiohook_dst = os.path.join(output_dir, "libuiohook.so")
     env.Command(target=libuiohook_dst, source=libuiohook_src, action=Copy("$TARGET", "$SOURCE"))
 
-# ----------------- Build Target -----------------
+elif platform.startswith("mac"):
+    output_dir = "bin/macos"
+    os.makedirs(output_dir, exist_ok=True)
+
+    lib_suffix = "macos.template_debug.x86_64" if build_type == "debug" else "macos.template_release.x86_64"
+
+    env["SHLIBSUFFIX"] = ".dylib"
+
+    env.Append(CPPPATH=[
+        f"{fixpath(godot_cpp_path)}/include",
+        f"{fixpath(godot_cpp_path)}/include/godot_cpp",
+        f"{fixpath(godot_cpp_path)}/gen/include",
+        f"{fixpath(godot_cpp_path)}/gdextension",
+        f"{fixpath(libuiohook_path_macos)}/include",
+        "src"
+    ])
+
+    env.Append(LIBPATH=[
+        f"{fixpath(godot_cpp_path)}/bin",
+        f"{fixpath(libuiohook_path_macos)}/lib"
+    ])
+
+    env.Append(LIBS=[
+        f"godot-cpp.{lib_suffix}",
+        "uiohook"
+    ])
+
+    env.Append(CXXFLAGS=["-std=c++17", "-O2", "-fPIC"])
+    env.Append(LINKFLAGS=["-shared", "-framework", "CoreFoundation", "-framework", "ApplicationServices"])
+
+    libuiohook_src = os.path.join(fixpath(libuiohook_path_macos), "lib", "libuiohook.dylib")
+    libuiohook_dst = os.path.join(output_dir, "libuiohook.dylib")
+    env.Command(target=libuiohook_dst, source=libuiohook_src, action=Copy("$TARGET", "$SOURCE"))
+
 target_name = (
-    f"bin/windows/GlobalInput.{lib_suffix}.dll"
-    if platform.startswith("win")
-    else f"bin/linux/GlobalInput.{lib_suffix}.so"
+    f"bin/windows/GlobalInput.{lib_suffix}.dll" if platform.startswith("win")
+    else f"bin/linux/GlobalInput.{lib_suffix}.so" if platform.startswith("linux")
+    else f"bin/macos/GlobalInput.{lib_suffix}.dylib"
 )
 
 env.SharedLibrary(target=target_name, source=sources)
