@@ -274,83 +274,76 @@ Dictionary GlobalInputX11::get_keys_just_released_detailed() {
         if ((current_frame - frame) <= 1) dict[key] = true;
     return dict;
 }
-
 void GlobalInputX11::poll_input() {
 #ifdef __linux__
     if (!display) return;
 
-    // Select input events we want on the root window
-    XSelectInput(display, root_window, KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
+    // Select which events we want to listen to
+    XSelectInput(display, root_window,
+                 KeyPressMask | KeyReleaseMask |
+                 ButtonPressMask | ButtonReleaseMask |
+                 PointerMotionMask);
 
     XEvent event;
 
     while (true) {
-        {
-            std::lock_guard<std::recursive_mutex> lock(state_mutex);
-            if (!running) break;
-            current_frame++;
-        }
+        // Wait for the next event (blocking)
+        XNextEvent(display, &event);
 
-        // Non-blocking X11 event check
-        while (XPending(display) > 0) {
-            XNextEvent(display, &event);
+        std::lock_guard<std::recursive_mutex> lock(state_mutex);
+        if (!running) break;
 
-            std::lock_guard<std::recursive_mutex> lock(state_mutex);
+        current_frame++;
 
-            switch (event.type) {
-                case KeyPress:
-                case KeyRelease: {
-                    XKeyEvent *key_ev = (XKeyEvent*)&event;
-                    KeySym keysym = XLookupKeysym(key_ev, 0);
-                    auto it = x11_to_godot.find(keysym);
-                    if (it == x11_to_godot.end()) break;
+        switch (event.type) {
+            case KeyPress:
+            case KeyRelease: {
+                XKeyEvent *key_ev = (XKeyEvent*)&event;
+                KeySym keysym = XkbKeycodeToKeysym(display, key_ev->keycode, 0, 0);
+                auto it = x11_to_godot.find(keysym);
+                if (it == x11_to_godot.end()) break;
 
-                    int godot_key = it->second;
-                    bool pressed_now = (event.type == KeyPress);
-                    bool before = key_state[godot_key];
+                int godot_key = it->second;
+                bool pressed_now = (event.type == KeyPress);
+                bool before = key_state[godot_key];
 
-                    key_state[godot_key] = pressed_now;
-                    if (pressed_now && !before) key_just_pressed_frame[godot_key] = current_frame;
-                    if (!pressed_now && before) key_just_released_frame[godot_key] = current_frame;
-                    break;
-                }
-
-                case ButtonPress:
-                case ButtonRelease: {
-                    XButtonEvent *btn_ev = (XButtonEvent*)&event;
-                    bool pressed_now = (event.type == ButtonPress);
-                    int button = 0;
-
-                    // Map X11 buttons to Godot
-                    if (btn_ev->button == Button1) button = MOUSE_BUTTON_LEFT;
-                    else if (btn_ev->button == Button2) button = MOUSE_BUTTON_MIDDLE;
-                    else if (btn_ev->button == Button3) button = MOUSE_BUTTON_RIGHT;
-                    else break;
-
-                    bool before = mouse_state[button];
-                    mouse_state[button] = pressed_now;
-                    if (pressed_now && !before) mouse_just_pressed_frame[button] = current_frame;
-                    if (!pressed_now && before) mouse_just_released_frame[button] = current_frame;
-                    break;
-                }
-
-                case MotionNotify: {
-                    XMotionEvent *motion_ev = (XMotionEvent*)&event;
-                    mouse_position.x = motion_ev->x_root;
-                    mouse_position.y = motion_ev->y_root;
-                    break;
-                }
+                key_state[godot_key] = pressed_now;
+                if (pressed_now && !before) key_just_pressed_frame[godot_key] = current_frame;
+                if (!pressed_now && before) key_just_released_frame[godot_key] = current_frame;
+                break;
             }
-        }
 
-        // Sleep a bit to avoid busy loop
-        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+            case ButtonPress:
+            case ButtonRelease: {
+                XButtonEvent *btn_ev = (XButtonEvent*)&event;
+                bool pressed_now = (event.type == ButtonPress);
+                int button = 0;
+
+                if (btn_ev->button == Button1) button = MOUSE_BUTTON_LEFT;
+                else if (btn_ev->button == Button2) button = MOUSE_BUTTON_MIDDLE;
+                else if (btn_ev->button == Button3) button = MOUSE_BUTTON_RIGHT;
+                else break;
+
+                bool before = mouse_state[button];
+                mouse_state[button] = pressed_now;
+                if (pressed_now && !before) mouse_just_pressed_frame[button] = current_frame;
+                if (!pressed_now && before) mouse_just_released_frame[button] = current_frame;
+                break;
+            }
+
+            case MotionNotify: {
+                XMotionEvent *motion_ev = (XMotionEvent*)&event;
+                mouse_position.x = motion_ev->x_root;
+                mouse_position.y = motion_ev->y_root;
+                break;
+            }
+
+            default:
+                break;
+        }
     }
 #endif
 }
-
-
-
 
 
 #ifdef __linux__
