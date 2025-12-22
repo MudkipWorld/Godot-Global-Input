@@ -13,11 +13,12 @@ libuiohook_path_macos = "../libuiohookMac"
 sources = [
     "GlobalInput.cpp",
     "register_types.cpp",
-    "GlobalInputUiohook.cpp",
-    "GlobalInputWindows.cpp",
-    "GlobalInputsx11.cpp"
-
+    "GlobalInputUiohook.cpp"
 ]
+if platform.startswith("win"):
+    sources.append("GlobalInputWindows.cpp")
+elif platform.startswith("linux"):
+    sources.append("GlobalInputsx11.cpp")
 
 def fixpath(p):
     return os.path.abspath(p).replace("\\", "/")
