@@ -124,9 +124,10 @@ elif platform.startswith("linux"):
         "pthread"
     ])
 
-    env.Append(LINKFLAGS=[
-        "-Wl,-rpath,/usr/lib/x86_64-linux-gnu",
-        "-Wl,-rpath,'$ORIGIN'"
+    env.Append(RPATH=[
+        '/usr/lib/x86_64-linux-gnu',
+        env.Literal('\\$$ORIGIN'),
+        env.Literal('\\$$ORIGIN/GI/linux')
     ])
 
     env.Append(CXXFLAGS=["-std=c++17", "-O2", "-fPIC"])
