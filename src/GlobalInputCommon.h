@@ -47,10 +47,10 @@ public:
     virtual Dictionary get_keys_pressed_detailed() = 0;
     virtual Dictionary get_keys_just_pressed_detailed() = 0;
     virtual Dictionary get_keys_just_released_detailed() = 0;
-    virtual bool is_alt_pressed();
-    virtual bool is_ctrl_pressed();
-    virtual bool is_shift_pressed();
-    virtual bool is_meta_pressed();
+    virtual bool is_alt_pressed() = 0;
+    virtual bool is_ctrl_pressed() = 0;
+    virtual bool is_shift_pressed() = 0;
+    virtual bool is_meta_pressed() = 0;
 
 };
 

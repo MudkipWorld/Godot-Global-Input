@@ -13,11 +13,12 @@ libuiohook_path_macos = "../libuiohookMac"
 sources = [
     "GlobalInput.cpp",
     "register_types.cpp",
-    "GlobalInputUiohook.cpp",
-    "GlobalInputWindows.cpp",
-    "GlobalInputsx11.cpp"
-
+    "GlobalInputUiohook.cpp"
 ]
+if platform.startswith("win"):
+    sources.append("GlobalInputWindows.cpp")
+elif platform.startswith("linux"):
+    sources.append("GlobalInputsx11.cpp")
 
 def fixpath(p):
     return os.path.abspath(p).replace("\\", "/")
@@ -123,9 +124,10 @@ elif platform.startswith("linux"):
         "pthread"
     ])
 
-    env.Append(LINKFLAGS=[
-        "-Wl,-rpath,/usr/lib/x86_64-linux-gnu",
-        "-Wl,-rpath,'$ORIGIN'"
+    env.Append(RPATH=[
+        '/usr/lib/x86_64-linux-gnu',
+        env.Literal('\\$$ORIGIN'),
+        env.Literal('\\$$ORIGIN/GI/linux')
     ])
 
     env.Append(CXXFLAGS=["-std=c++17", "-O2", "-fPIC"])
