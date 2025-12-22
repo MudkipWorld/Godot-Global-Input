@@ -22,7 +22,9 @@ using namespace godot;
 
 class IGlobalInputBackend : public RefCounted{
 public:
-    virtual ~IGlobalInputBackend() = default;
+    virtual ~IGlobalInputBackend() {
+    }
+
     virtual void start() = 0;
     virtual void stop() = 0;
 

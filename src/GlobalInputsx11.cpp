@@ -38,7 +38,7 @@ uint64_t GlobalInputX11::current_frame = 0;
 bool GlobalInputX11::running = false;
 std::recursive_mutex GlobalInputX11::state_mutex;
 std::thread GlobalInputX11::poll_thread;
-
+static constexpr uint64_t JUST_BUFFER_FRAMES = 10;
 
 void GlobalInputX11::start() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
@@ -90,7 +90,7 @@ void GlobalInputX11::stop() {
 
 void GlobalInputX11::increment_frame() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
-    current_frame++;
+
 }
 
 Vector2 GlobalInputX11::get_mouse_position() {
@@ -118,13 +118,15 @@ bool GlobalInputX11::is_key_pressed(int key) {
 bool GlobalInputX11::is_key_just_pressed(int key) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = key_just_pressed_frame.find(key);
-    return it != key_just_pressed_frame.end() && (current_frame - it->second) <= 1;
+    return it != key_just_pressed_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
 
 bool GlobalInputX11::is_key_just_released(int key) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = key_just_released_frame.find(key);
-    return it != key_just_released_frame.end() && (current_frame - it->second) <= 1;
+    return it != key_just_released_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
 
 bool GlobalInputX11::is_mouse_pressed(int button) {
@@ -136,15 +138,16 @@ bool GlobalInputX11::is_mouse_pressed(int button) {
 bool GlobalInputX11::is_mouse_just_pressed(int button) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = mouse_just_pressed_frame.find(button);
-    return it != mouse_just_pressed_frame.end() && (current_frame - it->second) <= 1;
+    return it != mouse_just_pressed_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
 
 bool GlobalInputX11::is_mouse_just_released(int button) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = mouse_just_released_frame.find(button);
-    return it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1;
+    return it != mouse_just_released_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
-
 bool GlobalInputX11::is_action_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
@@ -169,38 +172,51 @@ bool GlobalInputX11::is_action_just_pressed(const String &action_name) {
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
-    for (int i=0;i<events.size();i++) {
+    for (int i = 0; i < events.size(); i++) {
         Ref<InputEvent> ev = events[i];
         if (!ev.is_valid()) continue;
+
         if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
-            auto it = key_just_pressed_frame.find(key_ev->get_keycode());
             if (!modifiers_match(key_ev)) continue;
-            if (it != key_just_pressed_frame.end() && (current_frame - it->second) <= 1) return true;
-        } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-            auto it = mouse_just_pressed_frame.find(mouse_ev->get_button_index());
+            auto it = key_just_pressed_frame.find(key_ev->get_keycode());
+            if (it != key_just_pressed_frame.end() &&
+                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+                return true;
+        }
+        else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
             if (!modifiers_match(mouse_ev)) continue;
-            if (it != mouse_just_pressed_frame.end() && (current_frame - it->second) <= 1) return true;
+            auto it = mouse_just_pressed_frame.find(mouse_ev->get_button_index());
+            if (it != mouse_just_pressed_frame.end() &&
+                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+                return true;
         }
     }
     return false;
 }
+
 
 bool GlobalInputX11::is_action_just_released(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
-    for (int i=0;i<events.size();i++) {
+    for (int i = 0; i < events.size(); i++) {
         Ref<InputEvent> ev = events[i];
         if (!ev.is_valid()) continue;
+
         if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
-            auto it = key_just_released_frame.find(key_ev->get_keycode());
             if (!modifiers_match(key_ev)) continue;
-            if (it != key_just_released_frame.end() && (current_frame - it->second) <= 1) return true;
-        } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-            auto it = mouse_just_released_frame.find(mouse_ev->get_button_index());
+            auto it = key_just_released_frame.find(key_ev->get_keycode());
+            if (it != key_just_released_frame.end() &&
+                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+                return true;
+        }
+        else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
             if (!modifiers_match(mouse_ev)) continue;
-            if (it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1) return true;
+            auto it = mouse_just_released_frame.find(mouse_ev->get_button_index());
+            if (it != mouse_just_released_frame.end() &&
+                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+                return true;
         }
     }
     return false;
@@ -263,19 +279,24 @@ Dictionary GlobalInputX11::get_keys_pressed_detailed() {
 Dictionary GlobalInputX11::get_keys_just_pressed_detailed() {
     Dictionary dict;
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
-    for (const auto &[key, frame]: key_just_pressed_frame)
-        if ((current_frame - frame) <= 1) dict[key] = true;
+    for (const auto &[key, frame] : key_just_pressed_frame)
+        if ((current_frame - frame) <= JUST_BUFFER_FRAMES)
+            dict[key] = true;
     return dict;
 }
+
 Dictionary GlobalInputX11::get_keys_just_released_detailed() {
     Dictionary dict;
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
-    for (const auto &[key, frame]: key_just_released_frame)
-        if ((current_frame - frame) <= 1) dict[key] = true;
+    for (const auto &[key, frame] : key_just_released_frame)
+        if ((current_frame - frame) <= JUST_BUFFER_FRAMES)
+            dict[key] = true;
     return dict;
 }
+
 void GlobalInputX11::poll_input() {
 #ifdef __linux__
+    if (!running) return;
     if (!display) return;
 
     // Select which events we want to listen to
@@ -284,66 +305,76 @@ void GlobalInputX11::poll_input() {
                  ButtonPressMask | ButtonReleaseMask |
                  PointerMotionMask);
 
-    XEvent event;
-
     while (true) {
-        // Wait for the next event (blocking)
-        XNextEvent(display, &event);
-
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
-        if (!running) break;
-
-        current_frame++;
-
-        switch (event.type) {
-            case KeyPress:
-            case KeyRelease: {
-                XKeyEvent *key_ev = (XKeyEvent*)&event;
-                KeySym keysym = XkbKeycodeToKeysym(display, key_ev->keycode, 0, 0);
-                auto it = x11_to_godot.find(keysym);
-                if (it == x11_to_godot.end()) break;
-
-                int godot_key = it->second;
-                bool pressed_now = (event.type == KeyPress);
-                bool before = key_state[godot_key];
-
-                key_state[godot_key] = pressed_now;
-                if (pressed_now && !before) key_just_pressed_frame[godot_key] = current_frame;
-                if (!pressed_now && before) key_just_released_frame[godot_key] = current_frame;
-                break;
-            }
-
-            case ButtonPress:
-            case ButtonRelease: {
-                XButtonEvent *btn_ev = (XButtonEvent*)&event;
-                bool pressed_now = (event.type == ButtonPress);
-                int button = 0;
-
-                if (btn_ev->button == Button1) button = MOUSE_BUTTON_LEFT;
-                else if (btn_ev->button == Button2) button = MOUSE_BUTTON_MIDDLE;
-                else if (btn_ev->button == Button3) button = MOUSE_BUTTON_RIGHT;
-                else break;
-
-                bool before = mouse_state[button];
-                mouse_state[button] = pressed_now;
-                if (pressed_now && !before) mouse_just_pressed_frame[button] = current_frame;
-                if (!pressed_now && before) mouse_just_released_frame[button] = current_frame;
-                break;
-            }
-
-            case MotionNotify: {
-                XMotionEvent *motion_ev = (XMotionEvent*)&event;
-                mouse_position.x = motion_ev->x_root;
-                mouse_position.y = motion_ev->y_root;
-                break;
-            }
-
-            default:
-                break;
+        {
+            std::lock_guard<std::recursive_mutex> lock(state_mutex);
+            if (!running) break;
         }
+
+        // Only process events if there are any
+        int max_events = 64; // cap per iteration to avoid CPU spike
+        while (XPending(display) && max_events-- > 0) {
+            XEvent event;
+            XNextEvent(display, &event);
+
+            std::lock_guard<std::recursive_mutex> lock(state_mutex);
+            current_frame++;
+
+            switch (event.type) {
+                case KeyPress:
+                case KeyRelease: {
+                    XKeyEvent *key_ev = (XKeyEvent*)&event;
+                    KeySym keysym = XkbKeycodeToKeysym(display, key_ev->keycode, 0, 0);
+                    auto it = x11_to_godot.find(keysym);
+                    if (it == x11_to_godot.end()) break;
+
+                    int godot_key = it->second;
+                    bool pressed_now = (event.type == KeyPress);
+                    bool before = key_state[godot_key];
+
+                    key_state[godot_key] = pressed_now;
+                    if (pressed_now && !before) key_just_pressed_frame[godot_key] = current_frame;
+                    if (!pressed_now && before) key_just_released_frame[godot_key] = current_frame;
+                    break;
+                }
+
+                case ButtonPress:
+                case ButtonRelease: {
+                    XButtonEvent *btn_ev = (XButtonEvent*)&event;
+                    bool pressed_now = (event.type == ButtonPress);
+                    int button = 0;
+
+                    if (btn_ev->button == Button1) button = MOUSE_BUTTON_LEFT;
+                    else if (btn_ev->button == Button2) button = MOUSE_BUTTON_MIDDLE;
+                    else if (btn_ev->button == Button3) button = MOUSE_BUTTON_RIGHT;
+                    else break;
+
+                    bool before = mouse_state[button];
+                    mouse_state[button] = pressed_now;
+                    if (pressed_now && !before) mouse_just_pressed_frame[button] = current_frame;
+                    if (!pressed_now && before) mouse_just_released_frame[button] = current_frame;
+                    break;
+                }
+
+                case MotionNotify: {
+                    XMotionEvent *motion_ev = (XMotionEvent*)&event;
+                    mouse_position.x = motion_ev->x_root;
+                    mouse_position.y = motion_ev->y_root;
+                    break;
+                }
+
+                default:
+                    break;
+            }
+        }
+
+        // Avoid busy waiting
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 #endif
 }
+
+
 
 
 #ifdef __linux__

@@ -13,6 +13,11 @@
 using namespace godot;
 class GlobalInputUiohook : public IGlobalInputBackend {
 public:
+
+    ~GlobalInputUiohook(){
+        stop();
+    }
+
     void start() override;
     void stop() override;
     void increment_frame() override;

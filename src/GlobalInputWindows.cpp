@@ -29,7 +29,7 @@ uint64_t GlobalInputWindows::current_frame = 0;
 bool GlobalInputWindows::running = false;
 std::recursive_mutex GlobalInputWindows::state_mutex;
 std::thread GlobalInputWindows::poll_thread;
-
+static constexpr uint64_t JUST_BUFFER_FRAMES = 10;
 
 void GlobalInputWindows::start() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
@@ -71,14 +71,17 @@ bool GlobalInputWindows::is_key_pressed(int key) {
 bool GlobalInputWindows::is_key_just_pressed(int key) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = key_just_pressed_frame.find(key);
-    return it != key_just_pressed_frame.end() && (current_frame - it->second) <= 1;
+    return it != key_just_pressed_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
 
 bool GlobalInputWindows::is_key_just_released(int key) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = key_just_released_frame.find(key);
-    return it != key_just_released_frame.end() && (current_frame - it->second) <= 1;
+    return it != key_just_released_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
+
 
 bool GlobalInputWindows::is_mouse_pressed(int button) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
@@ -89,14 +92,17 @@ bool GlobalInputWindows::is_mouse_pressed(int button) {
 bool GlobalInputWindows::is_mouse_just_pressed(int button) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = mouse_just_pressed_frame.find(button);
-    return it != mouse_just_pressed_frame.end() && (current_frame - it->second) <= 1;
+    return it != mouse_just_pressed_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
 
 bool GlobalInputWindows::is_mouse_just_released(int button) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = mouse_just_released_frame.find(button);
-    return it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1;
+    return it != mouse_just_released_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
+
 
 bool GlobalInputWindows::is_action_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
@@ -128,17 +134,22 @@ bool GlobalInputWindows::is_action_just_pressed(const String &action_name) {
         if (!ev.is_valid()) continue;
 
         if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
+            if (!modifiers_match(key_ev)) continue;
             auto it = key_just_pressed_frame.find(key_ev->get_keycode());
-            if (!modifiers_match(key_ev)) continue; 
-            if (it != key_just_pressed_frame.end() && (current_frame - it->second) <= 1) return true;
+            if (it != key_just_pressed_frame.end() &&
+                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+                return true;
         } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
+            if (!modifiers_match(mouse_ev)) continue;
             auto it = mouse_just_pressed_frame.find(mouse_ev->get_button_index());
-            if (!modifiers_match(key_ev)) continue; 
-            if (it != mouse_just_pressed_frame.end() && (current_frame - it->second) <= 1) return true;
+            if (it != mouse_just_pressed_frame.end() &&
+                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+                return true;
         }
     }
     return false;
 }
+
 
 bool GlobalInputWindows::is_action_just_released(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
@@ -150,13 +161,17 @@ bool GlobalInputWindows::is_action_just_released(const String &action_name) {
         if (!ev.is_valid()) continue;
 
         if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
+            if (!modifiers_match(key_ev)) continue;
             auto it = key_just_released_frame.find(key_ev->get_keycode());
-            if (!modifiers_match(key_ev)) continue; 
-            if (it != key_just_released_frame.end() && (current_frame - it->second) <= 1) return true;
+            if (it != key_just_released_frame.end() &&
+                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+                return true;
         } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
+            if (!modifiers_match(mouse_ev)) continue;
             auto it = mouse_just_released_frame.find(mouse_ev->get_button_index());
-            if (!modifiers_match(key_ev)) continue; 
-            if (it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1) return true;
+            if (it != mouse_just_released_frame.end() &&
+                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+                return true;
         }
     }
     return false;
@@ -270,55 +285,77 @@ void GlobalInputWindows::poll_input() {
         {
             std::lock_guard<std::recursive_mutex> lock(state_mutex);
             if (!running) break;
+
             current_frame++;
 
-            last_key_state = key_state;
-            last_mouse_state = mouse_state;
-
-            // Poll keys
+            // --- KEYS ---
             for (int vk = 0; vk < 256; ++vk) {
-                bool pressed = (GetAsyncKeyState(vk) & 0x8000) != 0;
+                SHORT state = GetAsyncKeyState(vk);
+
+                bool pressed = (state & 0x8000) != 0;
+                bool transitioned = (state & 0x1) != 0;
+
                 int godot_key = translate_vk_to_godot(vk);
-                if (godot_key != 0) {
-                    if (pressed && !key_state[godot_key]) key_just_pressed_frame[godot_key] = current_frame;
-                    if (!pressed && key_state[godot_key]) key_just_released_frame[godot_key] = current_frame;
-                    key_state[godot_key] = pressed;
-                }
+                if (godot_key == 0) continue;
+
+                bool was_pressed = key_state[godot_key];
+
+                if (transitioned && pressed && !was_pressed)
+                    key_just_pressed_frame[godot_key] = current_frame;
+
+                if (transitioned && !pressed && was_pressed)
+                    key_just_released_frame[godot_key] = current_frame;
+
+                key_state[godot_key] = pressed;
             }
 
-            // Poll mouse
+            // --- MOUSE POSITION ---
             POINT p;
             if (GetCursorPos(&p)) {
-                // Find which monitor the cursor is currently on
                 HMONITOR monitor = MonitorFromPoint(p, MONITOR_DEFAULTTONEAREST);
-
                 MONITORINFO mi;
                 mi.cbSize = sizeof(MONITORINFO);
                 if (GetMonitorInfo(monitor, &mi)) {
-                    // Convert to monitor-relative coordinates
-                    int rel_x = p.x - mi.rcMonitor.left;
-                    int rel_y = p.y - mi.rcMonitor.top;
-                    mouse_position = Vector2(rel_x, rel_y);
+                    mouse_position = Vector2(
+                        p.x - mi.rcMonitor.left,
+                        p.y - mi.rcMonitor.top
+                    );
                 } else {
-                    // fallback to screen coordinates if something fails
                     mouse_position = Vector2(p.x, p.y);
                 }
             }
 
+            // --- MOUSE BUTTONS ---
+            int buttons[] = { VK_LBUTTON, VK_RBUTTON, VK_MBUTTON };
+            int godot_buttons[] = {
+                MOUSE_BUTTON_LEFT,
+                MOUSE_BUTTON_RIGHT,
+                MOUSE_BUTTON_MIDDLE
+            };
 
-            int buttons[] = {VK_LBUTTON, VK_RBUTTON, VK_MBUTTON};
-            int godot_buttons[] = {MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE};
             for (int i = 0; i < 3; i++) {
-                bool pressed = (GetAsyncKeyState(buttons[i]) & 0x8000) != 0;
-                if (pressed && !mouse_state[godot_buttons[i]]) mouse_just_pressed_frame[godot_buttons[i]] = current_frame;
-                if (!pressed && mouse_state[godot_buttons[i]]) mouse_just_released_frame[godot_buttons[i]] = current_frame;
+                SHORT state = GetAsyncKeyState(buttons[i]);
+
+                bool pressed = (state & 0x8000) != 0;
+                bool transitioned = (state & 0x1) != 0;
+
+                bool was_pressed = mouse_state[godot_buttons[i]];
+
+                if (transitioned && pressed && !was_pressed)
+                    mouse_just_pressed_frame[godot_buttons[i]] = current_frame;
+
+                if (transitioned && !pressed && was_pressed)
+                    mouse_just_released_frame[godot_buttons[i]] = current_frame;
+
                 mouse_state[godot_buttons[i]] = pressed;
             }
         }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(8));
     }
 #endif
 }
+
 
 #ifdef _WIN32
 void GlobalInputWindows::init_key_map() {

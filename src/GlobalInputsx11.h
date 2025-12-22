@@ -19,6 +19,11 @@ using namespace godot;
 
 class GlobalInputX11 : public IGlobalInputBackend {
 public:
+
+
+    ~GlobalInputX11(){
+        stop();
+    }
     void start() override;
     void stop() override;
     void increment_frame() override;

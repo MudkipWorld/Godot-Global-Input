@@ -16,6 +16,11 @@ using namespace godot;
 
 class GlobalInputWindows : public IGlobalInputBackend {
 public:
+
+
+    ~GlobalInputWindows(){
+        stop();
+    }
     void start() override;
     void stop() override;
     void increment_frame() override;
