@@ -255,20 +255,27 @@ void GlobalInputUiohook::start() {
     running = true;
 
     hook_thread = std::thread([]() {
-        hook_set_dispatch_proc(GlobalInputUiohook::hook_event_dispatch);
-        int res = hook_run(); 
+        try {
+            hook_set_dispatch_proc(GlobalInputUiohook::hook_event_dispatch);
+            int res = hook_run();
+        } catch (...) {
+            godot::print_line("uiohook crashed on startup");
+            return;
+        }
     });
+
     hook_thread.detach();
 }
 
-void GlobalInputUiohook::stop() {
+void GlobalInputUiohook::stop(){
     if (!running) return;
+
+    hook_stop();
+
     running = false;
 
-    hook_stop();   
-
     if (hook_thread.joinable()) {
-        hook_thread.join(); 
+        hook_thread.join();
     }
 }
 

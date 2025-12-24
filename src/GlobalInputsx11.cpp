@@ -93,22 +93,6 @@ void GlobalInputX11::increment_frame() {
 
 }
 
-Vector2 GlobalInputX11::get_mouse_position() {
-#ifdef __linux__
-    if (!display) return mouse_position;
-    ::Window root, child;
-    int rx, ry, wx, wy;
-    unsigned int mask;
-    if (XQueryPointer(display, root_window, &root, &child, &rx, &ry, &wx, &wy, &mask)) {
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
-        mouse_position.x = rx;
-        mouse_position.y = ry;
-    }
-#endif
-    return mouse_position;
-}
-
-
 
 void GlobalInputX11::poll_data() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
@@ -202,7 +186,6 @@ bool GlobalInputX11::is_action_pressed(const String &action_name) {
     return false;
 }
 
-
 bool GlobalInputX11::is_action_just_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
@@ -239,7 +222,6 @@ bool GlobalInputX11::is_action_just_pressed(const String &action_name) {
     return false;
 }
 
-
 bool GlobalInputX11::is_action_just_released(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
@@ -275,8 +257,6 @@ bool GlobalInputX11::is_action_just_released(const String &action_name) {
 
     return false;
 }
-
-
 
 bool GlobalInputX11::is_shift_pressed()   { return is_key_pressed(KEY_SHIFT); }
 bool GlobalInputX11::is_ctrl_pressed()    { return is_key_pressed(KEY_CTRL); }
@@ -349,12 +329,31 @@ Dictionary GlobalInputX11::get_keys_just_released_detailed() {
             dict[key] = true;
     return dict;
 }
+
+Vector2 GlobalInputX11::get_mouse_position() {
+#ifdef __linux__
+    if (!display) return mouse_position;
+
+    ::Window root, child;
+    int root_x, root_y, win_x, win_y;
+    unsigned int mask;
+
+    // Query pointer relative to the root window
+    if (XQueryPointer(display, root_window, &root, &child,
+                      &root_x, &root_y, &win_x, &win_y, &mask)) {
+        std::lock_guard<std::recursive_mutex> lock(state_mutex);
+        mouse_position.x = root_x;
+        mouse_position.y = root_y;
+    }
+#endif
+    return mouse_position;
+}
+
 void GlobalInputX11::poll_input() {
 #ifdef __linux__
-    if (!running || !display)
-        return;
+    if (!running || !display) return;
 
-    // Register events ONCE
+    // Register events only once
     XSelectInput(display, root_window,
                  KeyPressMask | KeyReleaseMask |
                  ButtonPressMask | ButtonReleaseMask |
@@ -363,12 +362,10 @@ void GlobalInputX11::poll_input() {
     while (true) {
         {
             std::lock_guard<std::recursive_mutex> lock(state_mutex);
-            if (!running)
-                break;
+            if (!running) break;
         }
 
         int max_events = 64;
-
         while (XPending(display) && max_events-- > 0) {
             XEvent event;
             XNextEvent(display, &event);
@@ -380,15 +377,13 @@ void GlobalInputX11::poll_input() {
                 case KeyRelease: {
                     XKeyEvent *key_ev = (XKeyEvent*)&event;
                     KeySym keysym = XkbKeycodeToKeysym(display, key_ev->keycode, 0, 0);
-
                     auto it = x11_to_godot.find(keysym);
-                    if (it == x11_to_godot.end())
-                        break;
+                    if (it == x11_to_godot.end()) break;
 
                     int key = it->second;
                     bool pressed_now = (event.type == KeyPress);
-
                     bool was_pressed = key_state[key];
+
                     key_state[key] = pressed_now;
 
                     if (pressed_now && !was_pressed)
@@ -396,7 +391,6 @@ void GlobalInputX11::poll_input() {
 
                     if (!pressed_now && was_pressed)
                         key_just_released_frame[key] = 0;
-
                     break;
                 }
 
@@ -419,12 +413,12 @@ void GlobalInputX11::poll_input() {
 
                     if (!pressed_now && was_pressed)
                         mouse_just_released_frame[button] = 0;
-
                     break;
                 }
 
                 case MotionNotify: {
                     XMotionEvent *motion = (XMotionEvent*)&event;
+                    // Always store global root coords
                     mouse_position.x = motion->x_root;
                     mouse_position.y = motion->y_root;
                     break;
