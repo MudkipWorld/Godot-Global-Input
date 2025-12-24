@@ -138,7 +138,6 @@ int GlobalInputUiohook::translate_hook_key_to_godot(uint16_t hook_code) {
     }
 }
 
-
 std::unordered_map<int, bool> GlobalInputUiohook::key_state;
 std::unordered_map<int, uint64_t> GlobalInputUiohook::key_just_pressed_frame;
 std::unordered_map<int, uint64_t> GlobalInputUiohook::key_just_released_frame;
@@ -155,9 +154,9 @@ int GlobalInputUiohook::wheel_delta = 0;
 Vector2 GlobalInputUiohook::mouse_position;
 uint64_t GlobalInputUiohook::current_frame = 0;
 std::recursive_mutex GlobalInputUiohook::state_mutex;
-bool GlobalInputUiohook::running = false;
+std::atomic<bool> GlobalInputUiohook::running = false;
 std::thread GlobalInputUiohook::hook_thread;
-static constexpr uint64_t JUST_BUFFER_FRAMES = 10;
+
 void GlobalInputUiohook::hook_event_dispatch(uiohook_event *event) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     if (!running) return;
@@ -231,7 +230,6 @@ void GlobalInputUiohook::start() {
     hook_thread.detach();
 }
 
-
 void GlobalInputUiohook::stop() {
     if (!running) return;
     running = false;
@@ -243,7 +241,6 @@ void GlobalInputUiohook::stop() {
     }
 }
 
-// Hook start/stop removed — no threads
 void GlobalInputUiohook::increment_frame() {
     std::lock_guard<std::recursive_mutex> lock(GlobalInputUiohook::state_mutex);
     current_frame++;
@@ -260,7 +257,6 @@ bool GlobalInputUiohook::is_key_pressed(int keycode) {
     return it != key_state.end() && it->second;
 }
 
-
 bool GlobalInputUiohook::is_key_just_pressed(int key) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = key_just_pressed_frame.find(key);
@@ -274,7 +270,6 @@ bool GlobalInputUiohook::is_key_just_released(int key) {
     return it != key_just_released_frame.end() &&
            (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
-
 
 bool GlobalInputUiohook::is_mouse_pressed(int button) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
@@ -295,7 +290,6 @@ bool GlobalInputUiohook::is_mouse_just_released(int button) {
     return it != mouse_just_released_frame.end() &&
            (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
-
 
 bool GlobalInputUiohook::is_action_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
@@ -344,8 +338,15 @@ bool GlobalInputUiohook::is_action_just_pressed(const String &action_name) {
         if (!ev.is_valid()) continue;
 
         if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
-            if (!modifiers_match(key_ev)) continue;
-            auto it = key_just_pressed_frame.find(key_ev->get_keycode());
+            int keycode = key_ev->get_keycode();
+
+            // Ignore modifiers for top-row numbers (0-9)
+            bool ignore_modifiers = (keycode >= KEY_0 && keycode <= KEY_9);
+
+            if (!ignore_modifiers && !modifiers_match(key_ev))
+                continue;
+
+            auto it = key_just_pressed_frame.find(keycode);
             if (it != key_just_pressed_frame.end() &&
                 (current_frame - it->second) <= JUST_BUFFER_FRAMES)
                 return true;
@@ -367,7 +368,6 @@ bool GlobalInputUiohook::is_action_just_pressed(const String &action_name) {
     return false;
 }
 
-
 bool GlobalInputUiohook::is_action_just_released(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
@@ -378,8 +378,13 @@ bool GlobalInputUiohook::is_action_just_released(const String &action_name) {
         if (!ev.is_valid()) continue;
 
         if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
-            if (!modifiers_match(key_ev)) continue;
-            auto it = key_just_released_frame.find(key_ev->get_keycode());
+            int keycode = key_ev->get_keycode();
+            bool ignore_modifiers = (keycode >= KEY_0 && keycode <= KEY_9);
+
+            if (!ignore_modifiers && !modifiers_match(key_ev))
+                continue;
+
+            auto it = key_just_released_frame.find(keycode);
             if (it != key_just_released_frame.end() &&
                 (current_frame - it->second) <= JUST_BUFFER_FRAMES)
                 return true;
@@ -400,8 +405,6 @@ bool GlobalInputUiohook::is_action_just_released(const String &action_name) {
     }
     return false;
 }
-
-
 
 
 bool GlobalInputUiohook::is_shift_pressed() {
@@ -427,7 +430,6 @@ bool GlobalInputUiohook::is_meta_pressed() {
            is_key_pressed(VC_META_L) ||
            is_key_pressed(VC_META_R);
 }
-
 
 static Dictionary make_key_info(int keycode) {
     Dictionary info;
@@ -462,7 +464,6 @@ Dictionary GlobalInputUiohook::get_keys_just_released_detailed()  {
             dict[OS::get_singleton()->get_keycode_string((Key)key)] = true;
     return dict;
 }
-
 
 bool GlobalInputUiohook::modifiers_match(InputEvent *ev) {
     bool ev_shift = false;

@@ -65,7 +65,7 @@ void GlobalInput::set_backend(const String &backend_name) {
     // Stop current backend
     if (backend.is_valid()) {
         backend->stop();
-        backend.unref(); // properly release RefCounted object
+        backend.unref();
     }
 
     selected_backend = new_backend;
@@ -139,11 +139,13 @@ void GlobalInput::stop_hook() {
 }
 
 void GlobalInput::_process(double delta) {
+    if (use_physics_frames) return;
     if (!use_physics_frames) current_frame++;
     if (backend.is_valid()) backend->increment_frame();
 }
 
 void GlobalInput::_physics_process(double delta) {
+    if (!use_physics_frames) return;
     if (use_physics_frames) current_frame++;
     if (backend.is_valid()) backend->increment_frame();
 }

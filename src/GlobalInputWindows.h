@@ -64,7 +64,7 @@ private:
     static int wheel_delta;
 
     static uint64_t current_frame;
-    static bool running;
+    static std::atomic<bool> running;
     static std::recursive_mutex state_mutex;
     static std::thread poll_thread;
 

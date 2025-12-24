@@ -67,7 +67,7 @@ private:
     static uint64_t current_frame;
 
     static std::recursive_mutex state_mutex;
-    static bool running;
+    static std::atomic<bool> running;
     static std::thread hook_thread;
 
     static void hook_event_dispatch(uiohook_event *event);

@@ -35,10 +35,10 @@ Vector2 GlobalInputX11::mouse_position;
 int GlobalInputX11::wheel_delta = 0;
 
 uint64_t GlobalInputX11::current_frame = 0;
-bool GlobalInputX11::running = false;
+std::atomic<bool> GlobalInputX11::running = false;
 std::recursive_mutex GlobalInputX11::state_mutex;
 std::thread GlobalInputX11::poll_thread;
-static constexpr uint64_t JUST_BUFFER_FRAMES = 10;
+
 
 void GlobalInputX11::start() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
@@ -318,8 +318,6 @@ void GlobalInputX11::poll_input() {
             XNextEvent(display, &event);
 
             std::lock_guard<std::recursive_mutex> lock(state_mutex);
-            current_frame++;
-
             switch (event.type) {
                 case KeyPress:
                 case KeyRelease: {
@@ -369,13 +367,10 @@ void GlobalInputX11::poll_input() {
         }
 
         // Avoid busy waiting
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(4));
     }
 #endif
 }
-
-
-
 
 #ifdef __linux__
 #include <X11/keysymdef.h>

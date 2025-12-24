@@ -53,6 +53,7 @@ public:
     virtual bool is_meta_pressed() = 0;
 
 };
+static constexpr uint64_t JUST_BUFFER_FRAMES = 5;
 
 
 
