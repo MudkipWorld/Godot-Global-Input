@@ -47,6 +47,7 @@ public:
     bool is_shift_pressed() override;
     bool is_meta_pressed() override;
     bool modifiers_match(InputEvent *key_ev);
+    void poll_data() override;
 
 private:
     static std::unordered_map<int, bool> key_state;

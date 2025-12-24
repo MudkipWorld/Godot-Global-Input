@@ -45,6 +45,7 @@ public:
     Dictionary get_keys_pressed_detailed() override;
     Dictionary get_keys_just_pressed_detailed() override;
     Dictionary get_keys_just_released_detailed() override;
+    void poll_data() override;
 
     bool is_alt_pressed() override;
     bool is_ctrl_pressed() override;

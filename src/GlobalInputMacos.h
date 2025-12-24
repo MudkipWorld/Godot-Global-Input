@@ -40,6 +40,7 @@ public:
     bool is_ctrl_pressed() override;
     bool is_shift_pressed() override;
     bool is_meta_pressed() override;
+    void poll_data() override;
 
     bool modifiers_match(InputEvent *key_ev);
 

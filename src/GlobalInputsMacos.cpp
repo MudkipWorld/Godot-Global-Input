@@ -62,6 +62,13 @@ void GlobalInputMac::stop() {
 #endif
 }
 
+
+void GlobalInputMac::poll_data() {
+
+}
+
+
+
 #ifdef __APPLE__
 CGEventRef event_callback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void* refcon) {
     if (type == kCGEventTapDisabledByTimeout)

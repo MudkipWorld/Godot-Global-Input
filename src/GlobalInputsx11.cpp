@@ -109,6 +109,29 @@ Vector2 GlobalInputX11::get_mouse_position() {
 }
 
 
+
+void GlobalInputX11::poll_data() {
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
+
+    for (auto &it : key_just_pressed_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : key_just_released_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : mouse_just_pressed_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : mouse_just_released_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+}
+
+
+
 bool GlobalInputX11::is_key_pressed(int key) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = key_state.find(key);
@@ -326,13 +349,12 @@ Dictionary GlobalInputX11::get_keys_just_released_detailed() {
             dict[key] = true;
     return dict;
 }
-
 void GlobalInputX11::poll_input() {
 #ifdef __linux__
-    if (!running) return;
-    if (!display) return;
+    if (!running || !display)
+        return;
 
-    // Select which events we want to listen to
+    // Register events ONCE
     XSelectInput(display, root_window,
                  KeyPressMask | KeyReleaseMask |
                  ButtonPressMask | ButtonReleaseMask |
@@ -341,31 +363,40 @@ void GlobalInputX11::poll_input() {
     while (true) {
         {
             std::lock_guard<std::recursive_mutex> lock(state_mutex);
-            if (!running) break;
+            if (!running)
+                break;
         }
 
-        // Only process events if there are any
-        int max_events = 64; // cap per iteration to avoid CPU spike
+        int max_events = 64;
+
         while (XPending(display) && max_events-- > 0) {
             XEvent event;
             XNextEvent(display, &event);
 
             std::lock_guard<std::recursive_mutex> lock(state_mutex);
+
             switch (event.type) {
                 case KeyPress:
                 case KeyRelease: {
                     XKeyEvent *key_ev = (XKeyEvent*)&event;
                     KeySym keysym = XkbKeycodeToKeysym(display, key_ev->keycode, 0, 0);
+
                     auto it = x11_to_godot.find(keysym);
-                    if (it == x11_to_godot.end()) break;
+                    if (it == x11_to_godot.end())
+                        break;
 
-                    int godot_key = it->second;
+                    int key = it->second;
                     bool pressed_now = (event.type == KeyPress);
-                    bool before = key_state[godot_key];
 
-                    key_state[godot_key] = pressed_now;
-                    if (pressed_now && !before) key_just_pressed_frame[godot_key] = current_frame;
-                    if (!pressed_now && before) key_just_released_frame[godot_key] = current_frame;
+                    bool was_pressed = key_state[key];
+                    key_state[key] = pressed_now;
+
+                    if (pressed_now && !was_pressed)
+                        key_just_pressed_frame[key] = 0;
+
+                    if (!pressed_now && was_pressed)
+                        key_just_released_frame[key] = 0;
+
                     break;
                 }
 
@@ -373,24 +404,29 @@ void GlobalInputX11::poll_input() {
                 case ButtonRelease: {
                     XButtonEvent *btn_ev = (XButtonEvent*)&event;
                     bool pressed_now = (event.type == ButtonPress);
-                    int button = 0;
 
+                    int button = 0;
                     if (btn_ev->button == Button1) button = MOUSE_BUTTON_LEFT;
                     else if (btn_ev->button == Button2) button = MOUSE_BUTTON_MIDDLE;
                     else if (btn_ev->button == Button3) button = MOUSE_BUTTON_RIGHT;
                     else break;
 
-                    bool before = mouse_state[button];
+                    bool was_pressed = mouse_state[button];
                     mouse_state[button] = pressed_now;
-                    if (pressed_now && !before) mouse_just_pressed_frame[button] = current_frame;
-                    if (!pressed_now && before) mouse_just_released_frame[button] = current_frame;
+
+                    if (pressed_now && !was_pressed)
+                        mouse_just_pressed_frame[button] = 0;
+
+                    if (!pressed_now && was_pressed)
+                        mouse_just_released_frame[button] = 0;
+
                     break;
                 }
 
                 case MotionNotify: {
-                    XMotionEvent *motion_ev = (XMotionEvent*)&event;
-                    mouse_position.x = motion_ev->x_root;
-                    mouse_position.y = motion_ev->y_root;
+                    XMotionEvent *motion = (XMotionEvent*)&event;
+                    mouse_position.x = motion->x_root;
+                    mouse_position.y = motion->y_root;
                     break;
                 }
 
@@ -399,11 +435,11 @@ void GlobalInputX11::poll_input() {
             }
         }
 
-        // Avoid busy waiting
-        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 #endif
 }
+
 
 #ifdef __linux__
 #include <X11/keysymdef.h>

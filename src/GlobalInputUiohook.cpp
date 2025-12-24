@@ -162,14 +162,17 @@ void GlobalInputUiohook::hook_event_dispatch(uiohook_event *event) {
     if (!running) return;
 
     switch (event->type) {
+
         case EVENT_KEY_PRESSED: {
             int key = translate_hook_key_to_godot(event->data.keyboard.keycode);
             if (!key) break;
 
-            bool was_pressed = key_state[key];
+            auto it = key_state.find(key);
+            bool was_pressed = (it != key_state.end() && it->second);
+
             if (!was_pressed) {
                 key_state[key] = true;
-                key_just_pressed_frame[key] = current_frame;
+                key_just_pressed_frame[key] = 0; // <-- IMPORTANT
             }
             break;
         }
@@ -178,28 +181,38 @@ void GlobalInputUiohook::hook_event_dispatch(uiohook_event *event) {
             int key = translate_hook_key_to_godot(event->data.keyboard.keycode);
             if (!key) break;
 
-            bool was_pressed = key_state[key];
+            auto it = key_state.find(key);
+            bool was_pressed = (it != key_state.end() && it->second);
+
             if (was_pressed) {
                 key_state[key] = false;
-                key_just_released_frame[key] = current_frame;
+                key_just_released_frame[key] = 0; // <-- IMPORTANT
             }
             break;
         }
 
         case EVENT_MOUSE_PRESSED: {
             int btn = event->data.mouse.button;
-            if (!mouse_state[btn]) {
+
+            auto it = mouse_state.find(btn);
+            bool was_pressed = (it != mouse_state.end() && it->second);
+
+            if (!was_pressed) {
                 mouse_state[btn] = true;
-                mouse_just_pressed_frame[btn] = current_frame;
+                mouse_just_pressed_frame[btn] = 0;
             }
             break;
         }
 
         case EVENT_MOUSE_RELEASED: {
             int btn = event->data.mouse.button;
-            if (mouse_state[btn]) {
+
+            auto it = mouse_state.find(btn);
+            bool was_pressed = (it != mouse_state.end() && it->second);
+
+            if (was_pressed) {
                 mouse_state[btn] = false;
-                mouse_just_released_frame[btn] = current_frame;
+                mouse_just_released_frame[btn] = 0;
             }
             break;
         }
@@ -212,10 +225,28 @@ void GlobalInputUiohook::hook_event_dispatch(uiohook_event *event) {
         case EVENT_MOUSE_WHEEL:
             wheel_delta = event->data.wheel.rotation;
             break;
-
-        default:
-            break;
     }
+}
+
+
+void GlobalInputUiohook::poll_data() {
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
+
+    for (auto &it : key_just_pressed_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : key_just_released_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : mouse_just_pressed_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : mouse_just_released_frame)
+        if (it.second == 0)
+            it.second = current_frame;
 }
 
 
@@ -344,10 +375,8 @@ bool GlobalInputUiohook::is_action_just_pressed(const String &action_name) {
 
             int keycode = key_ev->get_keycode();
             auto it = key_just_pressed_frame.find(keycode);
-            if (it == key_just_pressed_frame.end() || (current_frame - it->second) > 1) continue;
-
+            if (it == key_just_pressed_frame.end() || (current_frame - it->second) > JUST_BUFFER_FRAMES) continue;
             if (!modifiers_match(key_ev)) continue; 
-
             return true;
         }
         else if (ev->is_class("InputEventMouseButton")) {
@@ -390,7 +419,7 @@ bool GlobalInputUiohook::is_action_just_released(const String &action_name) {
 
             int keycode = key_ev->get_keycode();
             auto it = key_just_released_frame.find(keycode);
-            if (it == key_just_released_frame.end() || (current_frame - it->second) > 1) continue;
+            if (it == key_just_released_frame.end() || (current_frame - it->second) > JUST_BUFFER_FRAMES) continue;
 
             if (!modifiers_match(key_ev)) continue; 
 
