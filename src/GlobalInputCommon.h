@@ -51,9 +51,10 @@ public:
     virtual bool is_ctrl_pressed() = 0;
     virtual bool is_shift_pressed() = 0;
     virtual bool is_meta_pressed() = 0;
+    
 
 };
-static constexpr uint64_t JUST_BUFFER_FRAMES = 5;
+static constexpr uint64_t JUST_BUFFER_FRAMES = 1;
 
 
 

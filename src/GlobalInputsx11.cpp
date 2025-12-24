@@ -153,44 +153,66 @@ bool GlobalInputX11::is_action_pressed(const String &action_name) {
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
-    for (int i=0;i<events.size();i++) {
+    for (int i = 0; i < events.size(); ++i) {
         Ref<InputEvent> ev = events[i];
         if (!ev.is_valid()) continue;
-        if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
-            if (!modifiers_match(key_ev)) continue;
-            if (key_state[key_ev->get_keycode()]) return true;
-        } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-            if (!modifiers_match(mouse_ev)) continue;
+
+        if (ev->is_class("InputEventKey")) {
+            InputEventKey *key_ev = Object::cast_to<InputEventKey>(ev.ptr());
+            if (!key_ev) continue;
+
+            int keycode = key_ev->get_keycode();
+            if (!key_state[keycode]) continue;
+
+            if (!modifiers_match(key_ev)) continue; 
+
+            return true;
+        }
+        else if (ev->is_class("InputEventMouseButton")) {
+            InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr());
+            if (!mouse_ev) continue;
+            if (!modifiers_match(mouse_ev)) continue; 
             if (mouse_state[mouse_ev->get_button_index()]) return true;
         }
     }
+
     return false;
 }
+
 
 bool GlobalInputX11::is_action_just_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
-    for (int i = 0; i < events.size(); i++) {
+    for (int i = 0; i < events.size(); ++i) {
         Ref<InputEvent> ev = events[i];
         if (!ev.is_valid()) continue;
 
-        if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
-            if (!modifiers_match(key_ev)) continue;
-            auto it = key_just_pressed_frame.find(key_ev->get_keycode());
-            if (it != key_just_pressed_frame.end() &&
-                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
-                return true;
+        if (ev->is_class("InputEventKey")) {
+            InputEventKey *key_ev = Object::cast_to<InputEventKey>(ev.ptr());
+            if (!key_ev) continue;
+
+            int keycode = key_ev->get_keycode();
+            auto it = key_just_pressed_frame.find(keycode);
+            if (it == key_just_pressed_frame.end() || (current_frame - it->second) > 1) continue;
+
+            if (!modifiers_match(key_ev)) continue; 
+
+            return true;
         }
-        else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-            if (!modifiers_match(mouse_ev)) continue;
+        else if (ev->is_class("InputEventMouseButton")) {
+            InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr());
+            if (!mouse_ev) continue;
+
             auto it = mouse_just_pressed_frame.find(mouse_ev->get_button_index());
-            if (it != mouse_just_pressed_frame.end() &&
-                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+            if (it != mouse_just_pressed_frame.end() && (current_frame - it->second) <= 1) {
+                if (!modifiers_match(mouse_ev)) continue; 
                 return true;
+            }
         }
     }
+
     return false;
 }
 
@@ -200,27 +222,38 @@ bool GlobalInputX11::is_action_just_released(const String &action_name) {
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
-    for (int i = 0; i < events.size(); i++) {
+    for (int i = 0; i < events.size(); ++i) {
         Ref<InputEvent> ev = events[i];
         if (!ev.is_valid()) continue;
 
-        if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
-            if (!modifiers_match(key_ev)) continue;
-            auto it = key_just_released_frame.find(key_ev->get_keycode());
-            if (it != key_just_released_frame.end() &&
-                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
-                return true;
+        if (ev->is_class("InputEventKey")) {
+            InputEventKey *key_ev = Object::cast_to<InputEventKey>(ev.ptr());
+            if (!key_ev) continue;
+
+            int keycode = key_ev->get_keycode();
+            auto it = key_just_released_frame.find(keycode);
+            if (it == key_just_released_frame.end() || (current_frame - it->second) > 1) continue;
+
+            if (!modifiers_match(key_ev)) continue; 
+
+            return true;
         }
-        else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-            if (!modifiers_match(mouse_ev)) continue;
+        else if (ev->is_class("InputEventMouseButton")) {
+            InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr());
+            if (!mouse_ev) continue;
+
             auto it = mouse_just_released_frame.find(mouse_ev->get_button_index());
-            if (it != mouse_just_released_frame.end() &&
-                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+            if (it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1) {
+                if (!modifiers_match(mouse_ev)) continue; 
                 return true;
+            }
         }
     }
+
     return false;
 }
+
+
 
 bool GlobalInputX11::is_shift_pressed()   { return is_key_pressed(KEY_SHIFT); }
 bool GlobalInputX11::is_ctrl_pressed()    { return is_key_pressed(KEY_CTRL); }
@@ -367,7 +400,7 @@ void GlobalInputX11::poll_input() {
         }
 
         // Avoid busy waiting
-        std::this_thread::sleep_for(std::chrono::milliseconds(4));
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
     }
 #endif
 }

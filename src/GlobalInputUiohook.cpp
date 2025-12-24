@@ -328,6 +328,7 @@ bool GlobalInputUiohook::is_action_pressed(const String &action_name) {
     return false;
 }
 
+
 bool GlobalInputUiohook::is_action_just_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
@@ -337,34 +338,40 @@ bool GlobalInputUiohook::is_action_just_pressed(const String &action_name) {
         Ref<InputEvent> ev = events[i];
         if (!ev.is_valid()) continue;
 
-        if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
+        if (ev->is_class("InputEventKey")) {
+            InputEventKey *key_ev = Object::cast_to<InputEventKey>(ev.ptr());
+            if (!key_ev) continue;
+
             int keycode = key_ev->get_keycode();
-
-            // Ignore modifiers for top-row numbers (0-9)
-            bool ignore_modifiers = (keycode >= KEY_0 && keycode <= KEY_9);
-
-            if (!ignore_modifiers && !modifiers_match(key_ev))
-                continue;
-
             auto it = key_just_pressed_frame.find(keycode);
-            if (it != key_just_pressed_frame.end() &&
-                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
-                return true;
+            if (it == key_just_pressed_frame.end() || (current_frame - it->second) > 1) continue;
+
+            if (!modifiers_match(key_ev)) continue; 
+
+            return true;
         }
-        else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-            if (!modifiers_match(mouse_ev)) continue;
+        else if (ev->is_class("InputEventMouseButton")) {
+            InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr());
+            if (!mouse_ev) continue;
+
             auto it = mouse_just_pressed_frame.find(mouse_ev->get_button_index());
-            if (it != mouse_just_pressed_frame.end() &&
-                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+            if (it != mouse_just_pressed_frame.end() && (current_frame - it->second) <= 1) {
+                if (!modifiers_match(mouse_ev)) continue; 
                 return true;
+            }
         }
-        else if (auto *joy_ev = Object::cast_to<InputEventJoypadButton>(ev.ptr())) {
-            auto it = joy_just_pressed_frame.find(joy_ev->get_button_index());
-            if (it != joy_just_pressed_frame.end() &&
-                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+        else if (ev->is_class("InputEventJoypadButton")) {
+            InputEventJoypadButton *joy_ev = Object::cast_to<InputEventJoypadButton>(ev.ptr());
+            if (!joy_ev) continue;
+
+            int btn = joy_ev->get_button_index();
+            auto it = joy_just_pressed_frame.find(btn);
+            if (it != joy_just_pressed_frame.end() && (current_frame - it->second) <= 1) {
                 return true;
+            }
         }
     }
+
     return false;
 }
 
@@ -377,34 +384,44 @@ bool GlobalInputUiohook::is_action_just_released(const String &action_name) {
         Ref<InputEvent> ev = events[i];
         if (!ev.is_valid()) continue;
 
-        if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
+        if (ev->is_class("InputEventKey")) {
+            InputEventKey *key_ev = Object::cast_to<InputEventKey>(ev.ptr());
+            if (!key_ev) continue;
+
             int keycode = key_ev->get_keycode();
-            bool ignore_modifiers = (keycode >= KEY_0 && keycode <= KEY_9);
-
-            if (!ignore_modifiers && !modifiers_match(key_ev))
-                continue;
-
             auto it = key_just_released_frame.find(keycode);
-            if (it != key_just_released_frame.end() &&
-                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
-                return true;
+            if (it == key_just_released_frame.end() || (current_frame - it->second) > 1) continue;
+
+            if (!modifiers_match(key_ev)) continue; 
+
+            return true;
         }
-        else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-            if (!modifiers_match(mouse_ev)) continue;
+        else if (ev->is_class("InputEventMouseButton")) {
+            InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr());
+            if (!mouse_ev) continue;
+
             auto it = mouse_just_released_frame.find(mouse_ev->get_button_index());
-            if (it != mouse_just_released_frame.end() &&
-                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+            if (it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1) {
+                if (!modifiers_match(mouse_ev)) continue; 
                 return true;
+            }
         }
-        else if (auto *joy_ev = Object::cast_to<InputEventJoypadButton>(ev.ptr())) {
-            auto it = joy_just_released_frame.find(joy_ev->get_button_index());
-            if (it != joy_just_released_frame.end() &&
-                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+        else if (ev->is_class("InputEventJoypadButton")) {
+            InputEventJoypadButton *joy_ev = Object::cast_to<InputEventJoypadButton>(ev.ptr());
+            if (!joy_ev) continue;
+
+            int btn = joy_ev->get_button_index();
+            auto it = joy_just_released_frame.find(btn);
+            if (it != joy_just_released_frame.end() && (current_frame - it->second) <= 1) {
+
                 return true;
+            }
         }
     }
+
     return false;
 }
+
 
 
 bool GlobalInputUiohook::is_shift_pressed() {
