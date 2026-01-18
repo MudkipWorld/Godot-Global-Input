@@ -339,6 +339,7 @@ void GlobalInputWindows::poll_input() {
 #ifdef _WIN32
     while (running) {
         {
+            if (!OS::get_singleton()) return;
             std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
             for (const auto &[vk, godot_key] : vk_to_godot) {
@@ -417,16 +418,9 @@ void GlobalInputWindows::init_key_map() {
 	vk_to_godot[VK_F23] = KEY_F23;
 	vk_to_godot[VK_F24] = KEY_F24;
 
-	// Control vk_to_godot
 	vk_to_godot[VK_CONTROL] = KEY_CTRL;
-	// vk_to_godot[VK_LCONTROL] = KEY_CTRL;
-	// vk_to_godot[VK_RCONTROL] = KEY_CTRL;
 	vk_to_godot[VK_SHIFT] = KEY_SHIFT;
-	// vk_to_godot[VK_LSHIFT] = KEY_SHIFT;
-	// vk_to_godot[VK_RSHIFT] = KEY_SHIFT;
 	vk_to_godot[VK_MENU] = KEY_ALT;
-	// vk_to_godot[VK_LMENU] = KEY_ALT;
-	// vk_to_godot[VK_RMENU] = KEY_ALT;
 	vk_to_godot[VK_TAB] = KEY_TAB;
 	vk_to_godot[VK_SPACE] = KEY_SPACE;
 	vk_to_godot[VK_BACK] = KEY_BACKSPACE;
@@ -436,14 +430,10 @@ void GlobalInputWindows::init_key_map() {
 	vk_to_godot[VK_END] = KEY_END;
 	vk_to_godot[VK_PRIOR] = KEY_PAGEUP;
 	vk_to_godot[VK_NEXT] = KEY_PAGEDOWN;
-
-	// Arrow vk_to_godot
 	vk_to_godot[VK_UP] = KEY_UP;
 	vk_to_godot[VK_DOWN] = KEY_DOWN;
 	vk_to_godot[VK_LEFT] = KEY_LEFT;
 	vk_to_godot[VK_RIGHT] = KEY_RIGHT;
-
-	// Numpad vk_to_godot
 	vk_to_godot[VK_NUMPAD0] = KEY_KP_0;
 	vk_to_godot[VK_NUMPAD1] = KEY_KP_1;
 	vk_to_godot[VK_NUMPAD2] = KEY_KP_2;

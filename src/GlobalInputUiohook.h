@@ -18,10 +18,10 @@ public:
         stop();
     }
 
-    void start() override;
-    void stop() override;
-    void increment_frame() override;
-    void poll_events();
+    void start() override {}
+    void stop() override {}
+    void increment_frame() override {}
+    void poll_events() {}
 
     Vector2 get_mouse_position() override;
 
@@ -48,7 +48,7 @@ public:
     bool is_meta_pressed() override;
 
     bool modifiers_match(InputEvent *ev);
-    void poll_input_loop();
+    void poll_input_loop() {}
 
 private:
     static std::unordered_map<int, bool> key_state;
@@ -75,4 +75,4 @@ private:
     static int translate_hook_key_to_godot(uint16_t hook_code);
 };
 
-#endif // GLOBAL_INPUT_UIOHOOK_H
+#endif 

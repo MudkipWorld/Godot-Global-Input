@@ -159,6 +159,7 @@ std::thread GlobalInputUiohook::hook_thread;
 
 void GlobalInputUiohook::hook_event_dispatch(uiohook_event *event) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
+    if (!OS::get_singleton()) return;
     if (!running) return;
 
     switch (event->type) {
@@ -250,21 +251,20 @@ void GlobalInputUiohook::poll_data() {
 }
 
 
+
 void GlobalInputUiohook::start() {
     if (running) return;
     running = true;
-
+    try {
     hook_thread = std::thread([]() {
-        try {
-            hook_set_dispatch_proc(GlobalInputUiohook::hook_event_dispatch);
-            int res = hook_run();
-        } catch (...) {
-            godot::print_line("uiohook crashed on startup");
-            return;
-        }
+        hook_set_dispatch_proc(GlobalInputUiohook::hook_event_dispatch);
+        int res = hook_run();
     });
-
     hook_thread.detach();
+    }catch (...) {    
+        godot::print_line("uiohook crashed on startup");
+        return;
+    };
 }
 
 void GlobalInputUiohook::stop(){

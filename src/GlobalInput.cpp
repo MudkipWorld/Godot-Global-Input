@@ -11,7 +11,7 @@ bool GlobalInput::use_physics_frames = false;
 
 GlobalInput::GlobalInput() {
     if (OS::get_singleton()) {
-        start_hook(); // synchronous, safe
+        start_hook();
     }
 }
 
@@ -134,7 +134,7 @@ void GlobalInput::stop_hook() {
 
     if (backend.is_valid()) {
         backend->stop();
-        backend.unref(); // properly release RefCounted
+        backend.unref();
     }
 }
 
