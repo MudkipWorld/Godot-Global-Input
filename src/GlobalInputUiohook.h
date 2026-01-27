@@ -18,10 +18,10 @@ public:
         stop();
     }
 
-    void start() override {}
-    void stop() override {}
-    void increment_frame() override {}
-    void poll_events() {}
+    void start() override;
+    void stop() override;
+    void increment_frame() override;
+    void poll_events();
 
     Vector2 get_mouse_position() override;
 

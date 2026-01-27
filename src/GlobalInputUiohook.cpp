@@ -254,18 +254,36 @@ void GlobalInputUiohook::poll_data() {
 
 void GlobalInputUiohook::start() {
     if (running) return;
-    running = true;
-    try {
-    hook_thread = std::thread([]() {
-        hook_set_dispatch_proc(GlobalInputUiohook::hook_event_dispatch);
-        int res = hook_run();
-    });
-    hook_thread.detach();
-    }catch (...) {    
-        godot::print_line("uiohook crashed on startup");
+
+    if (!OS::get_singleton()) {
+        running = false;
         return;
-    };
+    }
+
+    const char* wayland = std::getenv("WAYLAND_DISPLAY");
+    if (wayland) {
+        godot::print_line("uiohook: Wayland detected, skipping global input backend.");
+        running = false;
+        return;
+    }
+
+    running = true;
+
+    try {
+        hook_thread = std::thread([]() {
+            hook_set_dispatch_proc(GlobalInputUiohook::hook_event_dispatch);
+            int res = hook_run();
+            if (res != UIOHOOK_SUCCESS) {
+                godot::print_line("uiohook: hook_run failed.");
+            }
+        });
+        hook_thread.detach();
+    } catch (...) {
+        godot::print_line("uiohook: Failed to start hook thread.");
+        running = false;
+    }
 }
+
 
 void GlobalInputUiohook::stop(){
     if (!running) return;
