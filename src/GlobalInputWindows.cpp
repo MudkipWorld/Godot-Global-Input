@@ -33,12 +33,18 @@ std::recursive_mutex GlobalInputWindows::state_mutex;
 std::thread GlobalInputWindows::poll_thread;
 
 void GlobalInputWindows::start() {
-    std::lock_guard<std::recursive_mutex> lock(state_mutex);
     if (running) return;
 
+    if (!OS::get_singleton()) {
+        running = false;
+        return;
+    }
+    if (OS::get_singleton()->has_feature("editor_hint")){
+        running = false;
+        return;
+    }
     running = true;
     init_key_map();
-
     poll_thread = std::thread(&GlobalInputWindows::poll_input, this);
 }
 
@@ -339,7 +345,11 @@ void GlobalInputWindows::poll_input() {
 #ifdef _WIN32
     while (running) {
         {
-            if (!OS::get_singleton()) return;
+            if (!OS::get_singleton()) {
+                running = false;
+                return;
+            }
+            
             std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
             for (const auto &[vk, godot_key] : vk_to_godot) {

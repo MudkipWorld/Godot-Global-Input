@@ -159,7 +159,17 @@ std::thread GlobalInputUiohook::hook_thread;
 
 void GlobalInputUiohook::hook_event_dispatch(uiohook_event *event) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
-    if (!OS::get_singleton()) return;
+    if (!OS::get_singleton()) {
+        running = false;
+        return;
+    }
+    
+    if (OS::get_singleton()->has_feature("editor_hint")){
+        running = false;
+        return;
+    }
+
+
     if (!running) return;
 
     switch (event->type) {
@@ -266,6 +276,7 @@ void GlobalInputUiohook::start() {
         running = false;
         return;
     }
+
 
     running = true;
 

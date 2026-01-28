@@ -43,12 +43,23 @@ std::thread GlobalInputX11::poll_thread;
 void GlobalInputX11::start() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     if (running) return;
+
+    if (!OS::get_singleton()) {
+        running = false;
+        return;
+    }
+
     running = true;
 
 #ifdef __linux__
-    display = XOpenDisplay(nullptr);
-    if (!display) UtilityFunctions::push_error("GlobalInputX11: Failed to open X display.");
+    // Wait until Godot's DisplayServer X11 window exists
+    Display* test_display = nullptr;
+    while (!(test_display = XOpenDisplay(nullptr))) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    display = test_display;
     root_window = DefaultRootWindow(display);
+
     init_key_map();
 
     keyboard_fd = -1;
@@ -71,8 +82,10 @@ void GlobalInputX11::start() {
     mice_fd = open("/dev/input/mice", O_RDONLY | O_NONBLOCK);
 #endif
 
+    // Start the poll thread **after display is valid**
     poll_thread = std::thread(&GlobalInputX11::poll_input, this);
 }
+
 
 void GlobalInputX11::stop() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
@@ -350,6 +363,10 @@ Vector2 GlobalInputX11::get_mouse_position() {
 }
 
 void GlobalInputX11::poll_input() {
+
+
+
+
 #ifdef __linux__
     if (!display) return;
 
@@ -362,11 +379,24 @@ void GlobalInputX11::poll_input() {
     int x11_fd = ConnectionNumber(display);
     fd_set in_fds;
 
-    while (true) {
+    while (running) {
+
+        if (OS::get_singleton()->has_feature("editor_hint")){
+            running = false;
+            return;
+        }
+
+
         {
             std::lock_guard<std::recursive_mutex> lock(state_mutex);
             if (!running) break;
         }
+
+        if (!OS::get_singleton()) {
+            running = false;
+            return;
+        }
+
 
         FD_ZERO(&in_fds);
         FD_SET(x11_fd, &in_fds);

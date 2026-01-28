@@ -9,6 +9,7 @@
 #include <godot_cpp/classes/input_event_joypad_motion.hpp>
 #include <godot_cpp/classes/input.hpp>
 #include <godot_cpp/classes/os.hpp>
+#include "godot_cpp/classes/display_server.hpp"
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>

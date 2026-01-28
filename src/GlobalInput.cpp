@@ -10,13 +10,10 @@ uint64_t GlobalInput::current_frame = 0;
 bool GlobalInput::use_physics_frames = false;
 
 GlobalInput::GlobalInput() {
-    if (OS::get_singleton()) {
-        start_hook();
-    }
 }
 
 GlobalInput::~GlobalInput() {
-    stop_hook();
+    
 }
 
 void GlobalInput::_bind_methods() {
@@ -40,6 +37,10 @@ void GlobalInput::_bind_methods() {
     ClassDB::bind_method(D_METHOD("is_ctrl_pressed"), &GlobalInput::is_ctrl_pressed);
     ClassDB::bind_method(D_METHOD("is_alt_pressed"), &GlobalInput::is_alt_pressed);
     ClassDB::bind_method(D_METHOD("is_meta_pressed"), &GlobalInput::is_meta_pressed);
+
+    ClassDB::bind_method(D_METHOD("start_hook"), &GlobalInput::start_hook);
+    ClassDB::bind_method(D_METHOD("stop_hook"), &GlobalInput::stop_hook);
+    
 
     ClassDB::bind_method(D_METHOD("set_backend", "backend_name"), &GlobalInput::set_backend);
     ClassDB::bind_method(D_METHOD("get_backend"), &GlobalInput::get_backend);

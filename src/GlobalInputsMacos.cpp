@@ -40,6 +40,16 @@ void GlobalInputMac::start() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     if (running) return;
 
+    if (!OS::get_singleton()) {
+        running = false;
+        return;
+    }
+
+    SceneTree* scene_tree = dynamic_cast<SceneTree*>(Engine::get_singleton()->get_main_loop());
+    while (!scene_tree->get_root()->get_window()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
     running = true;
     init_key_map();
 
