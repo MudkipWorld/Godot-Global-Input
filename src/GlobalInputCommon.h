@@ -56,7 +56,7 @@ public:
 
 
 };
-static constexpr uint64_t JUST_BUFFER_FRAMES = 3;
+static constexpr uint64_t JUST_BUFFER_FRAMES = 1;
 
 
 

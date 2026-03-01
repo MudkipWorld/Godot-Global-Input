@@ -43,12 +43,23 @@ std::thread GlobalInputX11::poll_thread;
 void GlobalInputX11::start() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     if (running) return;
+
+    if (!OS::get_singleton()) {
+        running = false;
+        return;
+    }
+
     running = true;
 
 #ifdef __linux__
-    display = XOpenDisplay(nullptr);
-    if (!display) UtilityFunctions::push_error("GlobalInputX11: Failed to open X display.");
+    // Wait until Godot's DisplayServer X11 window exists
+    Display* test_display = nullptr;
+    while (!(test_display = XOpenDisplay(nullptr))) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    display = test_display;
     root_window = DefaultRootWindow(display);
+
     init_key_map();
 
     keyboard_fd = -1;
@@ -71,8 +82,10 @@ void GlobalInputX11::start() {
     mice_fd = open("/dev/input/mice", O_RDONLY | O_NONBLOCK);
 #endif
 
+    // Start the poll thread **after display is valid**
     poll_thread = std::thread(&GlobalInputX11::poll_input, this);
 }
+
 
 void GlobalInputX11::stop() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
@@ -93,20 +106,27 @@ void GlobalInputX11::increment_frame() {
 
 }
 
-Vector2 GlobalInputX11::get_mouse_position() {
-#ifdef __linux__
-    if (!display) return mouse_position;
-    ::Window root, child;
-    int rx, ry, wx, wy;
-    unsigned int mask;
-    if (XQueryPointer(display, root_window, &root, &child, &rx, &ry, &wx, &wy, &mask)) {
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
-        mouse_position.x = rx;
-        mouse_position.y = ry;
-    }
-#endif
-    return mouse_position;
+
+void GlobalInputX11::poll_data() {
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
+
+    for (auto &it : key_just_pressed_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : key_just_released_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : mouse_just_pressed_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : mouse_just_released_frame)
+        if (it.second == 0)
+            it.second = current_frame;
 }
+
 
 
 bool GlobalInputX11::is_key_pressed(int key) {
@@ -179,7 +199,6 @@ bool GlobalInputX11::is_action_pressed(const String &action_name) {
     return false;
 }
 
-
 bool GlobalInputX11::is_action_just_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
@@ -216,7 +235,6 @@ bool GlobalInputX11::is_action_just_pressed(const String &action_name) {
     return false;
 }
 
-
 bool GlobalInputX11::is_action_just_released(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
@@ -252,8 +270,6 @@ bool GlobalInputX11::is_action_just_released(const String &action_name) {
 
     return false;
 }
-
-
 
 bool GlobalInputX11::is_shift_pressed()   { return is_key_pressed(KEY_SHIFT); }
 bool GlobalInputX11::is_ctrl_pressed()    { return is_key_pressed(KEY_CTRL); }
@@ -327,83 +343,139 @@ Dictionary GlobalInputX11::get_keys_just_released_detailed() {
     return dict;
 }
 
-void GlobalInputX11::poll_input() {
+Vector2 GlobalInputX11::get_mouse_position() {
 #ifdef __linux__
-    if (!running) return;
+    if (!display) return mouse_position;
+
+    ::Window root, child;
+    int root_x, root_y, win_x, win_y;
+    unsigned int mask;
+
+    // Query pointer relative to the root window
+    if (XQueryPointer(display, root_window, &root, &child,
+                      &root_x, &root_y, &win_x, &win_y, &mask)) {
+        std::lock_guard<std::recursive_mutex> lock(state_mutex);
+        mouse_position.x = root_x;
+        mouse_position.y = root_y;
+    }
+#endif
+    return mouse_position;
+}
+
+void GlobalInputX11::poll_input() {
+
+
+
+
+#ifdef __linux__
     if (!display) return;
 
-    // Select which events we want to listen to
+    // Select global events on root window once
     XSelectInput(display, root_window,
                  KeyPressMask | KeyReleaseMask |
                  ButtonPressMask | ButtonReleaseMask |
                  PointerMotionMask);
 
-    while (true) {
+    int x11_fd = ConnectionNumber(display);
+    fd_set in_fds;
+
+    while (running) {
+
+        if (OS::get_singleton()->has_feature("editor_hint")){
+            running = false;
+            return;
+        }
+
+
         {
             std::lock_guard<std::recursive_mutex> lock(state_mutex);
             if (!running) break;
         }
 
-        // Only process events if there are any
-        int max_events = 64; // cap per iteration to avoid CPU spike
-        while (XPending(display) && max_events-- > 0) {
-            XEvent event;
-            XNextEvent(display, &event);
-
-            std::lock_guard<std::recursive_mutex> lock(state_mutex);
-            switch (event.type) {
-                case KeyPress:
-                case KeyRelease: {
-                    XKeyEvent *key_ev = (XKeyEvent*)&event;
-                    KeySym keysym = XkbKeycodeToKeysym(display, key_ev->keycode, 0, 0);
-                    auto it = x11_to_godot.find(keysym);
-                    if (it == x11_to_godot.end()) break;
-
-                    int godot_key = it->second;
-                    bool pressed_now = (event.type == KeyPress);
-                    bool before = key_state[godot_key];
-
-                    key_state[godot_key] = pressed_now;
-                    if (pressed_now && !before) key_just_pressed_frame[godot_key] = current_frame;
-                    if (!pressed_now && before) key_just_released_frame[godot_key] = current_frame;
-                    break;
-                }
-
-                case ButtonPress:
-                case ButtonRelease: {
-                    XButtonEvent *btn_ev = (XButtonEvent*)&event;
-                    bool pressed_now = (event.type == ButtonPress);
-                    int button = 0;
-
-                    if (btn_ev->button == Button1) button = MOUSE_BUTTON_LEFT;
-                    else if (btn_ev->button == Button2) button = MOUSE_BUTTON_MIDDLE;
-                    else if (btn_ev->button == Button3) button = MOUSE_BUTTON_RIGHT;
-                    else break;
-
-                    bool before = mouse_state[button];
-                    mouse_state[button] = pressed_now;
-                    if (pressed_now && !before) mouse_just_pressed_frame[button] = current_frame;
-                    if (!pressed_now && before) mouse_just_released_frame[button] = current_frame;
-                    break;
-                }
-
-                case MotionNotify: {
-                    XMotionEvent *motion_ev = (XMotionEvent*)&event;
-                    mouse_position.x = motion_ev->x_root;
-                    mouse_position.y = motion_ev->y_root;
-                    break;
-                }
-
-                default:
-                    break;
-            }
+        if (!OS::get_singleton()) {
+            running = false;
+            return;
         }
 
-        // Avoid busy waiting
-        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+
+        FD_ZERO(&in_fds);
+        FD_SET(x11_fd, &in_fds);
+
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 50000;
+
+        int ret = select(x11_fd + 1, &in_fds, nullptr, nullptr, &tv);
+
+        if (ret > 0 && FD_ISSET(x11_fd, &in_fds)) {
+            // Process all pending events
+            while (XPending(display) > 0) {
+                XEvent event;
+                XNextEvent(display, &event);
+
+                std::lock_guard<std::recursive_mutex> lock(state_mutex);
+
+                switch (event.type) {
+                    case KeyPress:
+                    case KeyRelease: {
+                        XKeyEvent *key_ev = (XKeyEvent*)&event;
+                        KeySym keysym = XkbKeycodeToKeysym(display, key_ev->keycode, 0, 0);
+                        auto it = x11_to_godot.find(keysym);
+                        if (it == x11_to_godot.end()) break;
+
+                        int key = it->second;
+                        bool pressed_now = (event.type == KeyPress);
+                        bool was_pressed = key_state[key];
+
+                        key_state[key] = pressed_now;
+
+                        if (pressed_now && !was_pressed)
+                            key_just_pressed_frame[key] = 0;
+
+                        if (!pressed_now && was_pressed)
+                            key_just_released_frame[key] = 0;
+                        break;
+                    }
+
+                    case ButtonPress:
+                    case ButtonRelease: {
+                        XButtonEvent *btn_ev = (XButtonEvent*)&event;
+                        bool pressed_now = (event.type == ButtonPress);
+
+                        int button = 0;
+                        if (btn_ev->button == Button1) button = MOUSE_BUTTON_LEFT;
+                        else if (btn_ev->button == Button2) button = MOUSE_BUTTON_MIDDLE;
+                        else if (btn_ev->button == Button3) button = MOUSE_BUTTON_RIGHT;
+                        else break;
+
+                        bool was_pressed = mouse_state[button];
+                        mouse_state[button] = pressed_now;
+
+                        if (pressed_now && !was_pressed)
+                            mouse_just_pressed_frame[button] = 0;
+
+                        if (!pressed_now && was_pressed)
+                            mouse_just_released_frame[button] = 0;
+                        break;
+                    }
+
+                    case MotionNotify: {
+                        XMotionEvent *motion = (XMotionEvent*)&event;
+                        mouse_position.x = motion->x_root;
+                        mouse_position.y = motion->y_root;
+                        break;
+                    }
+
+                    default:
+                        break;
+                }
+            }
+        }
     }
 #endif
 }
+
+
 
 #ifdef __linux__
 #include <X11/keysymdef.h>

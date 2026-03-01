@@ -138,8 +138,6 @@ int GlobalInputUiohook::translate_hook_key_to_godot(uint16_t hook_code) {
     }
 }
 
-
-// Static member initialization
 std::unordered_map<int, bool> GlobalInputUiohook::key_state;
 std::unordered_map<int, uint64_t> GlobalInputUiohook::key_just_pressed_frame;
 std::unordered_map<int, uint64_t> GlobalInputUiohook::key_just_released_frame;
@@ -159,68 +157,157 @@ std::recursive_mutex GlobalInputUiohook::state_mutex;
 std::atomic<bool> GlobalInputUiohook::running = false;
 std::thread GlobalInputUiohook::hook_thread;
 
-// Event dispatcher — now just called manually
 void GlobalInputUiohook::hook_event_dispatch(uiohook_event *event) {
-    std::lock_guard<std::recursive_mutex> lock(GlobalInputUiohook::state_mutex);
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
+    if (!OS::get_singleton()) {
+        running = false;
+        return;
+    }
+    
+    if (OS::get_singleton()->has_feature("editor_hint")){
+        running = false;
+        return;
+    }
+
+
+    if (!running) return;
 
     switch (event->type) {
+
         case EVENT_KEY_PRESSED: {
             int key = translate_hook_key_to_godot(event->data.keyboard.keycode);
-            if (key && !key_state[key]) {
+            if (!key) break;
+
+            auto it = key_state.find(key);
+            bool was_pressed = (it != key_state.end() && it->second);
+
+            if (!was_pressed) {
                 key_state[key] = true;
-                key_just_pressed_frame[key] = current_frame;
+                key_just_pressed_frame[key] = 0; // <-- IMPORTANT
             }
             break;
         }
+
         case EVENT_KEY_RELEASED: {
             int key = translate_hook_key_to_godot(event->data.keyboard.keycode);
-            if (key && key_state[key]) {
+            if (!key) break;
+
+            auto it = key_state.find(key);
+            bool was_pressed = (it != key_state.end() && it->second);
+
+            if (was_pressed) {
                 key_state[key] = false;
-                key_just_released_frame[key] = current_frame;
+                key_just_released_frame[key] = 0; // <-- IMPORTANT
             }
             break;
         }
-        case EVENT_MOUSE_PRESSED:
-            mouse_state[event->data.mouse.button] = true;
-            mouse_just_pressed_frame[event->data.mouse.button] = current_frame;
+
+        case EVENT_MOUSE_PRESSED: {
+            int btn = event->data.mouse.button;
+
+            auto it = mouse_state.find(btn);
+            bool was_pressed = (it != mouse_state.end() && it->second);
+
+            if (!was_pressed) {
+                mouse_state[btn] = true;
+                mouse_just_pressed_frame[btn] = 0;
+            }
             break;
-        case EVENT_MOUSE_RELEASED:
-            mouse_state[event->data.mouse.button] = false;
-            mouse_just_released_frame[event->data.mouse.button] = current_frame;
+        }
+
+        case EVENT_MOUSE_RELEASED: {
+            int btn = event->data.mouse.button;
+
+            auto it = mouse_state.find(btn);
+            bool was_pressed = (it != mouse_state.end() && it->second);
+
+            if (was_pressed) {
+                mouse_state[btn] = false;
+                mouse_just_released_frame[btn] = 0;
+            }
             break;
+        }
+
         case EVENT_MOUSE_MOVED:
         case EVENT_MOUSE_DRAGGED:
             mouse_position = Vector2(event->data.mouse.x, event->data.mouse.y);
             break;
+
         case EVENT_MOUSE_WHEEL:
             wheel_delta = event->data.wheel.rotation;
             break;
-        default:
-            break;
     }
+}
+
+
+void GlobalInputUiohook::poll_data() {
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
+
+    for (auto &it : key_just_pressed_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : key_just_released_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : mouse_just_pressed_frame)
+        if (it.second == 0)
+            it.second = current_frame;
+
+    for (auto &it : mouse_just_released_frame)
+        if (it.second == 0)
+            it.second = current_frame;
 }
 
 
 
 void GlobalInputUiohook::start() {
     if (running) return;
+
+    if (!OS::get_singleton()) {
+        running = false;
+        return;
+    }
+
+    const char* wayland = std::getenv("WAYLAND_DISPLAY");
+    if (wayland) {
+        godot::print_line("uiohook: Wayland detected, skipping global input backend.");
+        running = false;
+        return;
+    }
+
+
     running = true;
 
-    std::thread([](){
-        hook_set_dispatch_proc(GlobalInputUiohook::hook_event_dispatch);
-        int res = hook_run();
-    }).detach();
+    try {
+        hook_thread = std::thread([]() {
+            hook_set_dispatch_proc(GlobalInputUiohook::hook_event_dispatch);
+            int res = hook_run();
+            if (res != UIOHOOK_SUCCESS) {
+                godot::print_line("uiohook: hook_run failed.");
+            }
+        });
+        hook_thread.detach();
+    } catch (...) {
+        godot::print_line("uiohook: Failed to start hook thread.");
+        running = false;
+    }
 }
 
-void GlobalInputUiohook::stop() {
+
+void GlobalInputUiohook::stop(){
     if (!running) return;
-    running = false;
+
     hook_stop();
-    if (hook_thread.joinable())
+
+    running = false;
+
+    if (hook_thread.joinable()) {
         hook_thread.join();
+    }
 }
 
-// Hook start/stop removed — no threads
 void GlobalInputUiohook::increment_frame() {
     std::lock_guard<std::recursive_mutex> lock(GlobalInputUiohook::state_mutex);
     current_frame++;
@@ -237,36 +324,39 @@ bool GlobalInputUiohook::is_key_pressed(int keycode) {
     return it != key_state.end() && it->second;
 }
 
-bool GlobalInputUiohook::is_key_just_pressed(int keycode) {
-    std::lock_guard<std::recursive_mutex> lock(GlobalInputUiohook::state_mutex);
-    auto it = key_just_pressed_frame.find(keycode);
-    return it != key_just_pressed_frame.end() && (current_frame - it->second) <= 1;
+bool GlobalInputUiohook::is_key_just_pressed(int key) {
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
+    auto it = key_just_pressed_frame.find(key);
+    return it != key_just_pressed_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
 
-bool GlobalInputUiohook::is_key_just_released(int keycode) {
-    std::lock_guard<std::recursive_mutex> lock(GlobalInputUiohook::state_mutex);
-    auto it = key_just_released_frame.find(keycode);
-    return it != key_just_released_frame.end() && (current_frame - it->second) <= 1;
+bool GlobalInputUiohook::is_key_just_released(int key) {
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
+    auto it = key_just_released_frame.find(key);
+    return it != key_just_released_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
 
 bool GlobalInputUiohook::is_mouse_pressed(int button) {
-    std::lock_guard<std::recursive_mutex> lock(GlobalInputUiohook::state_mutex);
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = mouse_state.find(button);
     return it != mouse_state.end() && it->second;
 }
 
 bool GlobalInputUiohook::is_mouse_just_pressed(int button) {
-    std::lock_guard<std::recursive_mutex> lock(GlobalInputUiohook::state_mutex);
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = mouse_just_pressed_frame.find(button);
-    return it != mouse_just_pressed_frame.end() && (current_frame - it->second) <= 1;
+    return it != mouse_just_pressed_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
 
 bool GlobalInputUiohook::is_mouse_just_released(int button) {
-    std::lock_guard<std::recursive_mutex> lock(GlobalInputUiohook::state_mutex);
+    std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = mouse_just_released_frame.find(button);
-    return it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1;
+    return it != mouse_just_released_frame.end() &&
+           (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
-
 
 bool GlobalInputUiohook::is_action_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
@@ -305,6 +395,7 @@ bool GlobalInputUiohook::is_action_pressed(const String &action_name) {
     return false;
 }
 
+
 bool GlobalInputUiohook::is_action_just_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
@@ -320,10 +411,8 @@ bool GlobalInputUiohook::is_action_just_pressed(const String &action_name) {
 
             int keycode = key_ev->get_keycode();
             auto it = key_just_pressed_frame.find(keycode);
-            if (it == key_just_pressed_frame.end() || (current_frame - it->second) > 1) continue;
-
+            if (it == key_just_pressed_frame.end() || (current_frame - it->second) > JUST_BUFFER_FRAMES) continue;
             if (!modifiers_match(key_ev)) continue; 
-
             return true;
         }
         else if (ev->is_class("InputEventMouseButton")) {
@@ -366,7 +455,7 @@ bool GlobalInputUiohook::is_action_just_released(const String &action_name) {
 
             int keycode = key_ev->get_keycode();
             auto it = key_just_released_frame.find(keycode);
-            if (it == key_just_released_frame.end() || (current_frame - it->second) > 1) continue;
+            if (it == key_just_released_frame.end() || (current_frame - it->second) > JUST_BUFFER_FRAMES) continue;
 
             if (!modifiers_match(key_ev)) continue; 
 
@@ -424,7 +513,6 @@ bool GlobalInputUiohook::is_meta_pressed() {
            is_key_pressed(VC_META_R);
 }
 
-
 static Dictionary make_key_info(int keycode) {
     Dictionary info;
     info["keycode"] = keycode;
@@ -458,7 +546,6 @@ Dictionary GlobalInputUiohook::get_keys_just_released_detailed()  {
             dict[OS::get_singleton()->get_keycode_string((Key)key)] = true;
     return dict;
 }
-
 
 bool GlobalInputUiohook::modifiers_match(InputEvent *ev) {
     bool ev_shift = false;
@@ -501,3 +588,4 @@ bool GlobalInputUiohook::modifiers_match(InputEvent *ev) {
 
     return true;
 }
+
