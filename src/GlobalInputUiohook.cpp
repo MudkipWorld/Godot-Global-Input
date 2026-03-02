@@ -243,24 +243,30 @@ void GlobalInputUiohook::hook_event_dispatch(uiohook_event *event) {
 void GlobalInputUiohook::poll_data() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
-    for (auto &it : key_just_pressed_frame)
-        if (it.second == 0)
+    for (auto &it : key_just_pressed_frame) {
+        if (it.second == 0) {
             it.second = current_frame;
+        }
+    }
 
-    for (auto &it : key_just_released_frame)
-        if (it.second == 0)
+    for (auto &it : key_just_released_frame) {
+        if (it.second == 0) {
             it.second = current_frame;
+        }
+    }
 
-    for (auto &it : mouse_just_pressed_frame)
-        if (it.second == 0)
+    for (auto &it : mouse_just_pressed_frame) {
+        if (it.second == 0) {
             it.second = current_frame;
+        }
+    }
 
-    for (auto &it : mouse_just_released_frame)
-        if (it.second == 0)
+    for (auto &it : mouse_just_released_frame) {
+        if (it.second == 0) {
             it.second = current_frame;
+        }
+    }
 }
-
-
 
 void GlobalInputUiohook::start() {
     if (running) return;
@@ -328,6 +334,7 @@ bool GlobalInputUiohook::is_key_just_pressed(int key) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = key_just_pressed_frame.find(key);
     return it != key_just_pressed_frame.end() &&
+           it->second != 0 &&
            (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
 
@@ -335,8 +342,10 @@ bool GlobalInputUiohook::is_key_just_released(int key) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = key_just_released_frame.find(key);
     return it != key_just_released_frame.end() &&
+           it->second != 0 &&
            (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
+
 
 bool GlobalInputUiohook::is_mouse_pressed(int button) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
@@ -348,6 +357,7 @@ bool GlobalInputUiohook::is_mouse_just_pressed(int button) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = mouse_just_pressed_frame.find(button);
     return it != mouse_just_pressed_frame.end() &&
+           it->second != 0 &&
            (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
 
@@ -355,88 +365,57 @@ bool GlobalInputUiohook::is_mouse_just_released(int button) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
     auto it = mouse_just_released_frame.find(button);
     return it != mouse_just_released_frame.end() &&
+           it->second != 0 &&
            (current_frame - it->second) <= JUST_BUFFER_FRAMES;
 }
+
+
 
 bool GlobalInputUiohook::is_action_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
-    for (int i = 0; i < events.size(); ++i) {
+    for (int i = 0; i < events.size(); i++) {
         Ref<InputEvent> ev = events[i];
         if (!ev.is_valid()) continue;
 
-        if (ev->is_class("InputEventKey")) {
-            InputEventKey *key_ev = Object::cast_to<InputEventKey>(ev.ptr());
-            if (!key_ev) continue;
-
-            int keycode = key_ev->get_keycode();
-            if (!key_state[keycode]) continue;
-
+        if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
             if (!modifiers_match(key_ev)) continue; 
-
-            return true;
-        }
-        else if (ev->is_class("InputEventMouseButton")) {
-            InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr());
-            if (!mouse_ev) continue;
-            if (!modifiers_match(mouse_ev)) continue; 
+            if (key_state[key_ev->get_keycode()]) return true;
+        } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
+            if (!modifiers_match(key_ev)) continue; 
             if (mouse_state[mouse_ev->get_button_index()]) return true;
         }
-        else if (ev->is_class("InputEventJoypadButton")) {
-            InputEventJoypadButton *joy_ev = Object::cast_to<InputEventJoypadButton>(ev.ptr());
-            if (!joy_ev) continue;
-
-            if (joy_state[joy_ev->get_button_index()]) return true;
-        }
     }
-
     return false;
 }
-
 
 bool GlobalInputUiohook::is_action_just_pressed(const String &action_name) {
     if (!InputMap::get_singleton()) return false;
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
-    for (int i = 0; i < events.size(); ++i) {
+    for (int i = 0; i < events.size(); i++) {
         Ref<InputEvent> ev = events[i];
         if (!ev.is_valid()) continue;
 
-        if (ev->is_class("InputEventKey")) {
-            InputEventKey *key_ev = Object::cast_to<InputEventKey>(ev.ptr());
-            if (!key_ev) continue;
-
-            int keycode = key_ev->get_keycode();
-            auto it = key_just_pressed_frame.find(keycode);
-            if (it == key_just_pressed_frame.end() || (current_frame - it->second) > JUST_BUFFER_FRAMES) continue;
+        if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
+            auto it = key_just_pressed_frame.find(key_ev->get_keycode());
             if (!modifiers_match(key_ev)) continue; 
-            return true;
-        }
-        else if (ev->is_class("InputEventMouseButton")) {
-            InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr());
-            if (!mouse_ev) continue;
-
+            if (it != key_just_pressed_frame.end() &&
+                it->second != 0 &&
+                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
+                return true;
+        } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
             auto it = mouse_just_pressed_frame.find(mouse_ev->get_button_index());
-            if (it != mouse_just_pressed_frame.end() && (current_frame - it->second) <= 1) {
-                if (!modifiers_match(mouse_ev)) continue; 
+            if (!modifiers_match(key_ev)) continue; 
+            if (it != mouse_just_pressed_frame.end() &&
+                it->second != 0 &&
+                (current_frame - it->second) <= JUST_BUFFER_FRAMES)
                 return true;
-            }
-        }
-        else if (ev->is_class("InputEventJoypadButton")) {
-            InputEventJoypadButton *joy_ev = Object::cast_to<InputEventJoypadButton>(ev.ptr());
-            if (!joy_ev) continue;
-
-            int btn = joy_ev->get_button_index();
-            auto it = joy_just_pressed_frame.find(btn);
-            if (it != joy_just_pressed_frame.end() && (current_frame - it->second) <= 1) {
-                return true;
-            }
         }
     }
-
     return false;
 }
 
@@ -445,49 +424,22 @@ bool GlobalInputUiohook::is_action_just_released(const String &action_name) {
     const Array events = InputMap::get_singleton()->action_get_events(action_name);
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
 
-    for (int i = 0; i < events.size(); ++i) {
+    for (int i = 0; i < events.size(); i++) {
         Ref<InputEvent> ev = events[i];
         if (!ev.is_valid()) continue;
 
-        if (ev->is_class("InputEventKey")) {
-            InputEventKey *key_ev = Object::cast_to<InputEventKey>(ev.ptr());
-            if (!key_ev) continue;
-
-            int keycode = key_ev->get_keycode();
-            auto it = key_just_released_frame.find(keycode);
-            if (it == key_just_released_frame.end() || (current_frame - it->second) > JUST_BUFFER_FRAMES) continue;
-
+        if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
+            auto it = key_just_released_frame.find(key_ev->get_keycode());
             if (!modifiers_match(key_ev)) continue; 
-
-            return true;
-        }
-        else if (ev->is_class("InputEventMouseButton")) {
-            InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr());
-            if (!mouse_ev) continue;
-
+            if (it != key_just_released_frame.end() && (current_frame - it->second) <= 1) return true;
+        } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
             auto it = mouse_just_released_frame.find(mouse_ev->get_button_index());
-            if (it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1) {
-                if (!modifiers_match(mouse_ev)) continue; 
-                return true;
-            }
-        }
-        else if (ev->is_class("InputEventJoypadButton")) {
-            InputEventJoypadButton *joy_ev = Object::cast_to<InputEventJoypadButton>(ev.ptr());
-            if (!joy_ev) continue;
-
-            int btn = joy_ev->get_button_index();
-            auto it = joy_just_released_frame.find(btn);
-            if (it != joy_just_released_frame.end() && (current_frame - it->second) <= 1) {
-
-                return true;
-            }
+            if (!modifiers_match(key_ev)) continue; 
+            if (it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1) return true;
         }
     }
-
     return false;
 }
-
-
 
 bool GlobalInputUiohook::is_shift_pressed() {
     return is_key_pressed(KEY_SHIFT) ||

@@ -143,14 +143,16 @@ void GlobalInput::_process(double delta) {
     if (use_physics_frames) return;
     if (backend.is_valid()) {
         backend->poll_data();
-        backend->increment_frame();}
+        backend->increment_frame();
+        }
 }
 
 void GlobalInput::_physics_process(double delta) {
     if (!use_physics_frames) return;
     if (backend.is_valid()) {
         backend->poll_data();
-        backend->increment_frame();}
+        backend->increment_frame();
+        }
 
 }
 
