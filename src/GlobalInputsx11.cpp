@@ -103,7 +103,7 @@ void GlobalInputX11::stop() {
 
 void GlobalInputX11::increment_frame() {
     std::lock_guard<std::recursive_mutex> lock(state_mutex);
-
+    current_frame++;
 }
 
 void GlobalInputX11::poll_data() {
