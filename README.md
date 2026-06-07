@@ -46,6 +46,15 @@ func _exit_tree() -> void:
 
 ### Known Issues
 - While unsure if this is because I am using a VMBox, but Linux (x11) seems to sometimes get hung up. Needs testing.
+- To use it on x11, you must add the software to Input Group. Don't forget to run these.
+
+```
+getent group input
+sudo usermod -aG input $USER
+
+// to check if you are in the group
+ls -l /dev/input/event*
+```
 
 ### References
 - Horobol's Demo (Which was used for PNGTuber+) [godot-background-inputs-demo](https://github.com/Horobol/godot-background-inputs-demo)

@@ -174,6 +174,48 @@ public:
 
     bool is_meta_pressed() { return Input::get_singleton()->is_key_pressed(KEY_META);}
 
+    bool modifiers_match(InputEvent *key_ev){
+        bool ev_shift = false;
+        bool ev_ctrl  = false;
+        bool ev_alt   = false;
+        bool ev_meta  = false;
+        int  ev_keycode = 0;
+
+        if (InputEventKey *key_ev = Object::cast_to<InputEventKey>(key_ev)) {
+            ev_shift   = key_ev->is_shift_pressed();
+            ev_ctrl    = key_ev->is_ctrl_pressed();
+            ev_alt     = key_ev->is_alt_pressed();
+            ev_meta    = key_ev->is_meta_pressed();
+            ev_keycode = key_ev->get_keycode();
+        } else if (InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(key_ev)) {
+            ev_shift = mouse_ev->is_shift_pressed();
+            ev_ctrl  = mouse_ev->is_ctrl_pressed();
+            ev_alt   = mouse_ev->is_alt_pressed();
+            ev_meta  = mouse_ev->is_meta_pressed();
+        } else {
+            return true;
+        }
+
+        bool shift_now = is_shift_pressed();
+        bool ctrl_now  = is_ctrl_pressed();
+        bool alt_now   = is_alt_pressed();
+        bool meta_now  = is_meta_pressed();
+
+        if (ev_keycode == KEY_SHIFT || ev_keycode == KEY_CTRL || ev_keycode == KEY_ALT || ev_keycode == KEY_META) {
+            if (ev_keycode == KEY_SHIFT) ev_shift = shift_now;
+            if (ev_keycode == KEY_CTRL)  ev_ctrl  = ctrl_now;
+            if (ev_keycode == KEY_ALT)   ev_alt   = alt_now;
+            if (ev_keycode == KEY_META)  ev_meta  = meta_now;
+        }
+
+        if (ev_shift != shift_now) return false;
+        if (ev_ctrl  != ctrl_now)  return false;
+        if (ev_alt   != alt_now)   return false;
+        if (ev_meta  != meta_now)  return false;
+
+        return true;
+    }
+
     // Misc
 
     void handle_input(const Ref<InputEvent> &event) override {

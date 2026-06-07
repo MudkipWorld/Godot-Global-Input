@@ -376,71 +376,68 @@ public:
     void handle_input(const Ref<InputEvent> &event) override {}
 
     void poll_input() {
-        #ifdef __linux__
+    #ifdef __linux__
         struct pollfd fds[2];
-        fds[0].fd = keyboard_fd;
-        fds[0].events = POLLIN;
-        fds[1].fd = mice_fd;
-        fds[1].events = POLLIN;
 
         while (running) {
-            {
+            fds[0].fd = keyboard_fd;
+            fds[0].events = POLLIN;
+            fds[0].revents = 0;
+
+            fds[1].fd = mice_fd;
+            fds[1].events = POLLIN;
+            fds[1].revents = 0;
+
+            int ret = poll(fds, 2, 5);
+
+            if (ret > 0) {
                 std::lock_guard<std::recursive_mutex> lock(state_mutex);
-                if (keyboard_fd >= 0) {
-                    int ret = poll(fds, 1, 1);
-                    if (ret > 0) {
-                        struct input_event ev;
-                        while (read(keyboard_fd, &ev, sizeof(ev)) > 0) {
-                            if (ev.type == EV_KEY) {
-                                auto it = key_map.find((int)ev.code);
-                                if (it != key_map.end()) {
-                                    int godot_key = it->second;
-                                    bool pressed = (ev.value != 0);;
-                                    bool was_pressed = key_state[godot_key];
 
-                                    key_state[godot_key] = pressed;
+                if (keyboard_fd >= 0 && (fds[0].revents & POLLIN)) {
+                    struct input_event ev;
 
-                                    if (pressed && !was_pressed) key_just_pressed_frame[godot_key] = 0;
-                                    if (!pressed && was_pressed) key_just_released_frame[godot_key] = 0;
-                                }
-                            }
-                        }
+                    while (read(keyboard_fd, &ev, sizeof(ev)) == sizeof(ev)) {
+                        if (ev.type != EV_KEY)
+                            continue;
+
+                        auto it = key_map.find((int)ev.code);
+                        if (it == key_map.end())
+                            continue;
+
+                        int godot_key = it->second;
+                        bool pressed = (ev.value != 0);
+
+                        bool was_pressed = key_state[godot_key];
+                        key_state[godot_key] = pressed;
+
+                        if (pressed && !was_pressed)
+                            key_just_pressed_frame[godot_key] = 0;
+
+                        if (!pressed && was_pressed)
+                            key_just_released_frame[godot_key] = 0;
                     }
                 }
+                
+                if (mice_fd >= 0 && (fds[1].revents & POLLIN)) {
+                    unsigned char data[3];
 
-                if (mice_fd >= 0) {
+                    if (read(mice_fd, data, sizeof(data)) == sizeof(data)) {
+                        bool left_pressed   = (data[0] & 0x1) != 0;
+                        bool right_pressed  = (data[0] & 0x2) != 0;
+                        bool middle_pressed = (data[0] & 0x4) != 0;
 
-                    int ret = poll(&fds[1], 1, 1);
-                    
-                    if (ret > 0) {
-                        unsigned char data[3];
+                        update_mouse_state(MOUSE_BUTTON_LEFT, left_pressed);
+                        update_mouse_state(MOUSE_BUTTON_RIGHT, right_pressed);
+                        update_mouse_state(MOUSE_BUTTON_MIDDLE, middle_pressed);
 
-                        ssize_t bytes_read = read(mice_fd, data, sizeof(data));
-
-                        if (bytes_read > 0) {
-
-                            bool left_pressed = (data[0] & 0x1);
-                            bool right_pressed = (data[0] & 0x2);
-                            bool middle_pressed = (data[0] & 0x4);
-
-                            update_mouse_state(MOUSE_BUTTON_LEFT, left_pressed);
-                            update_mouse_state(MOUSE_BUTTON_RIGHT, right_pressed);
-                            update_mouse_state(MOUSE_BUTTON_MIDDLE, middle_pressed);
-
-
-                            if (data[1] != 0 || data[2] != 0) {
-
-                                mouse_position.x += (char)data[1];
-                                mouse_position.y += (char)data[2];
-                            }
-                        }
+                        mouse_position.x += (signed char)data[1];
+                        mouse_position.y += (signed char)data[2];
                     }
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(2));
             }
-            
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-        #endif
+    #endif
     }
 
 private:

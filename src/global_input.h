@@ -102,15 +102,23 @@ private:
         #endif
 
         #ifdef __linux__
-            if (selected_backend == "x11") {
-                backend = Ref<LinuxGlobalInput>(memnew(LinuxGlobalInput));
-                active_backend = BACKEND_X11;
-            } 
-            else {
+            const char* wayland = std::getenv("WAYLAND_DISPLAY");
+            if (wayland) {
+                godot::print_line("uiohook: Wayland detected, skipping global input backend.");
                 backend = Ref<DummyGlobalInput>(memnew(DummyGlobalInput));
                 active_backend = BACKEND_DUMMY;
-            } 
-
+                return;
+            }
+            else {
+                if (selected_backend == "x11") {
+                    backend = Ref<LinuxGlobalInput>(memnew(LinuxGlobalInput));
+                    active_backend = BACKEND_X11;
+                } 
+                else {
+                    backend = Ref<DummyGlobalInput>(memnew(DummyGlobalInput));
+                    active_backend = BACKEND_DUMMY;
+                } 
+            }
         #endif
 
     }
