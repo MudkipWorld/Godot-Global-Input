@@ -6,19 +6,10 @@ platform = ARGUMENTS.get("platform", sys.platform)
 build_type = ARGUMENTS.get("build", "debug")
 
 godot_cpp_path = "../godot-cpp"
-libuiohook_path = "../libuiohook"
-libuiohook_path_linux = "../libuiohookLinux"
-libuiohook_path_macos = "../libuiohookMac"
-
 sources = [
-    "GlobalInput.cpp",
+    "global_input.cpp",
     "register_types.cpp",
-    "GlobalInputUiohook.cpp"
 ]
-if platform.startswith("win"):
-    sources.append("GlobalInputWindows.cpp")
-elif platform.startswith("linux"):
-    sources.append("GlobalInputsx11.cpp")
 
 def fixpath(p):
     return os.path.abspath(p).replace("\\", "/")
@@ -34,12 +25,15 @@ if platform.startswith("win"):
     else:
         cxx = "x86_64-w64-mingw32-g++"
         cc = "x86_64-w64-mingw32-gcc"
+
 elif platform.startswith("linux"):
     cxx = "g++"
     cc = "gcc"
+
 elif platform.startswith("mac"):
     cxx = "o64-clang++"
     cc = "o64-clang"
+
 else:
     print(f"Unsupported target platform: {platform}")
     Exit(1)
@@ -66,18 +60,15 @@ if platform.startswith("win"):
         f"{godot_cpp_path}/include/godot_cpp",
         f"{godot_cpp_path}/gen/include",
         f"{godot_cpp_path}/gdextension",
-        f"{libuiohook_path}/include",
         "src"
     ])
 
     env.Append(LIBPATH=[
         f"{godot_cpp_path}/bin",
-        f"{libuiohook_path}/lib"
     ])
 
     env.Append(LIBS=[
         f"godot-cpp.{lib_suffix}",
-        "uiohook",
         "user32",
         "winpthread"
     ])
@@ -93,10 +84,6 @@ if platform.startswith("win"):
         if os.path.isfile(src_path):
             env.Execute(Copy(dst_path, src_path))
 
-    libuiohook_src = os.path.join(fixpath(libuiohook_path), "lib", "libuiohook.dll")
-    libuiohook_dst = os.path.join(output_dir, "libuiohook.dll")
-    env.Command(target=libuiohook_dst, source=libuiohook_src, action=Copy("$TARGET", "$SOURCE"))
-
 elif platform.startswith("linux"):
     output_dir = "bin/linux"
     os.makedirs(output_dir, exist_ok=True)
@@ -108,19 +95,16 @@ elif platform.startswith("linux"):
         f"{fixpath(godot_cpp_path)}/include/godot_cpp",
         f"{fixpath(godot_cpp_path)}/gen/include",
         f"{fixpath(godot_cpp_path)}/gdextension",
-        f"{fixpath(libuiohook_path_linux)}/include",
         "src"
     ])
 
     env.Append(LIBPATH=[
         f"{fixpath(godot_cpp_path)}/bin",
-        f"{fixpath(libuiohook_path_linux)}/lib",
         "/usr/lib/x86_64-linux-gnu"
     ])
 
     env.Append(LIBS=[
         f"godot-cpp.{lib_suffix}",
-        "uiohook",
         "pthread"
     ])
 
@@ -131,10 +115,6 @@ elif platform.startswith("linux"):
     ])
 
     env.Append(CXXFLAGS=["-std=c++17", "-O2", "-fPIC"])
-
-    libuiohook_src = os.path.join(fixpath(libuiohook_path_linux), "lib", "libuiohook.so")
-    libuiohook_dst = os.path.join(output_dir, "libuiohook.so")
-    env.Command(target=libuiohook_dst, source=libuiohook_src, action=Copy("$TARGET", "$SOURCE"))
 
 elif platform.startswith("mac"):
     output_dir = "bin/macos"
@@ -149,26 +129,19 @@ elif platform.startswith("mac"):
         f"{fixpath(godot_cpp_path)}/include/godot_cpp",
         f"{fixpath(godot_cpp_path)}/gen/include",
         f"{fixpath(godot_cpp_path)}/gdextension",
-        f"{fixpath(libuiohook_path_macos)}/include",
         "src"
     ])
 
     env.Append(LIBPATH=[
         f"{fixpath(godot_cpp_path)}/bin",
-        f"{fixpath(libuiohook_path_macos)}/lib"
     ])
 
     env.Append(LIBS=[
         f"godot-cpp.{lib_suffix}",
-        "uiohook"
     ])
 
     env.Append(CXXFLAGS=["-std=c++17", "-O2", "-fPIC"])
     env.Append(LINKFLAGS=["-shared", "-framework", "CoreFoundation", "-framework", "ApplicationServices"])
-
-    libuiohook_src = os.path.join(fixpath(libuiohook_path_macos), "lib", "libuiohook.dylib")
-    libuiohook_dst = os.path.join(output_dir, "libuiohook.dylib")
-    env.Command(target=libuiohook_dst, source=libuiohook_src, action=Copy("$TARGET", "$SOURCE"))
 
 target_name = (
     f"bin/windows/GlobalInput.{lib_suffix}.dll" if platform.startswith("win")

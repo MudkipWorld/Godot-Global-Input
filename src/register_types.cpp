@@ -5,7 +5,7 @@
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
 
-#include "GlobalInput.h"
+#include "global_input.h"
 
 using namespace godot;
 

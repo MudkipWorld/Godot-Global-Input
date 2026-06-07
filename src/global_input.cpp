@@ -1,20 +1,16 @@
-#include "GlobalInput.h"
+#include "global_input.h"
 
 #include <thread>
 
 using namespace godot;
 
-// Static members
 bool GlobalInput::hook_started = false;
 uint64_t GlobalInput::current_frame = 0;
 bool GlobalInput::use_physics_frames = false;
 
-GlobalInput::GlobalInput() {
-}
+GlobalInput::GlobalInput() {}
 
-GlobalInput::~GlobalInput() {
-    
-}
+GlobalInput::~GlobalInput() {}
 
 void GlobalInput::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_mouse_position"), &GlobalInput::get_mouse_position);
@@ -41,21 +37,18 @@ void GlobalInput::_bind_methods() {
     ClassDB::bind_method(D_METHOD("start_hook"), &GlobalInput::start_hook);
     ClassDB::bind_method(D_METHOD("stop_hook"), &GlobalInput::stop_hook);
     
-
     ClassDB::bind_method(D_METHOD("set_backend", "backend_name"), &GlobalInput::set_backend);
     ClassDB::bind_method(D_METHOD("get_backend"), &GlobalInput::get_backend);
 
-ClassDB::bind_method(D_METHOD("set_use_physics_frames", "enabled"), &GlobalInput::set_use_physics_frames);
-ClassDB::bind_method(D_METHOD("get_use_physics_frames"), &GlobalInput::get_use_physics_frames);
+    ClassDB::bind_method(D_METHOD("set_use_physics_frames", "enabled"), &GlobalInput::set_use_physics_frames);
+    ClassDB::bind_method(D_METHOD("get_use_physics_frames"), &GlobalInput::get_use_physics_frames);
 
-
-    ADD_PROPERTY(PropertyInfo(Variant::STRING, "backend", PROPERTY_HINT_ENUM, "default,uiohook,windows,x11"),
+    ADD_PROPERTY(PropertyInfo(Variant::STRING, "backend", PROPERTY_HINT_ENUM, "windows,x11, dummy"),
                  "set_backend", "get_backend");
 
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_physics_frames"), 
                  "set_use_physics_frames", "get_use_physics_frames");
 }
-
 
 void GlobalInput::set_backend(const String &backend_name) {
     String new_backend = backend_name.to_lower();
@@ -63,70 +56,35 @@ void GlobalInput::set_backend(const String &backend_name) {
     if (selected_backend == new_backend)
         return;
 
-    // Stop current backend
     if (backend.is_valid()) {
         backend->stop();
         backend.unref();
     }
 
+    hook_started = false;
     selected_backend = new_backend;
 
-#ifdef _WIN32
-    if (selected_backend == "windows") {
-        backend = Ref<GlobalInputWindows>(memnew(GlobalInputWindows));
-        active_backend = BACKEND_WINDOWS;
-    } else
-#endif
+    check_backend();
 
-
-#ifdef __linux__
-    if (selected_backend == "x11") {
-        backend = Ref<GlobalInputX11>(memnew(GlobalInputX11));
-        active_backend = BACKEND_X11;
-    } else
-#endif
-
-    if (selected_backend == "uiohook") {
-        backend = Ref<GlobalInputUiohook>(memnew(GlobalInputUiohook));
-        active_backend = BACKEND_UIOHOOK;
-    } else {
-        backend = Ref<GlobalInputUiohook>(memnew(GlobalInputUiohook));
-        active_backend = BACKEND_UIOHOOK;
-    }
-
-    if (backend.is_valid())
+    if (backend.is_valid()){
+        hook_started = true;
         backend->start();
+    } 
+    else godot::print_line("Invalid Backend");
 }
 
 String GlobalInput::get_backend() { return selected_backend; }
-String GlobalInput::get_active_backend_name() const { return selected_backend; }
 
 void GlobalInput::start_hook() {
     if (hook_started) return;
 
-#ifdef _WIN32
-    if (selected_backend == "windows") {
-        backend = Ref<GlobalInputWindows>(memnew(GlobalInputWindows));
-        active_backend = BACKEND_WINDOWS;
-    } else
-#endif
+    check_backend();
 
-#ifdef __linux__
-    if (selected_backend == "x11") {
-        backend = Ref<GlobalInputX11>(memnew(GlobalInputX11));
-        active_backend = BACKEND_X11;
-    } else
-#endif
-
-    {
-        backend = Ref<GlobalInputUiohook>(memnew(GlobalInputUiohook));
-        active_backend = BACKEND_UIOHOOK;
-    }
-
-    hook_started = true;
-
-    if (backend.is_valid())
+    if (backend.is_valid()){
+        hook_started = true;
         backend->start();
+    } 
+    else godot::print_line("Invalid Backend");
 }
 
 void GlobalInput::stop_hook() {
@@ -156,7 +114,13 @@ void GlobalInput::_physics_process(double delta) {
 
 }
 
-// --- Input queries ---
+void GlobalInput::_input(const Ref<InputEvent> &event){
+    if (backend.is_valid()) {
+        backend->handle_input(event);
+    }
+}
+
+// --- Input Checks ---
 Vector2 GlobalInput::get_mouse_position() { return backend.is_valid() ? backend->get_mouse_position() : Vector2(); }
 bool GlobalInput::is_key_pressed(int key) { return backend.is_valid() && backend->is_key_pressed(key); }
 bool GlobalInput::is_key_just_pressed(int key) { return backend.is_valid() && backend->is_key_just_pressed(key); }
