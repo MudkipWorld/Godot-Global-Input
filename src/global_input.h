@@ -83,7 +83,6 @@ private:
     Ref<GlobalInputCommon> backend;
 
     static bool hook_started;
-    static uint64_t current_frame;
     static bool use_physics_frames;
     String selected_backend = "dummy";
 
@@ -104,7 +103,7 @@ private:
         #ifdef __linux__
             const char* wayland = std::getenv("WAYLAND_DISPLAY");
             if (wayland) {
-                godot::print_line("uiohook: Wayland detected, skipping global input backend.");
+                godot::print_line("Wayland detected, skipping global inputs for now.");
                 backend = Ref<DummyGlobalInput>(memnew(DummyGlobalInput));
                 active_backend = BACKEND_DUMMY;
                 return;

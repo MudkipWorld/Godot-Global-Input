@@ -180,7 +180,7 @@ public:
             close(keyboard_fd);
             keyboard_fd = -1;
         }
-        if (mice_fd >= 0) { // NEW
+        if (mice_fd >= 0) {
             close(mice_fd);
             mice_fd = -1;
         }
@@ -188,7 +188,6 @@ public:
     }
 
     void poll_data() override {
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         for (auto &it : key_just_pressed_frame) { if (it.second == 0) it.second = current_frame; }
         for (auto &it : key_just_released_frame) { if (it.second == 0) it.second = current_frame; }
         for (auto &it : mouse_just_pressed_frame) { if (it.second == 0) it.second = current_frame; }
@@ -196,55 +195,46 @@ public:
     }
 
     void increment_frame() override{
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         current_frame++;    
     }
 
     bool is_key_pressed(int key) override{
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         auto it = key_state.find(key);
         return it != key_state.end() && it->second;
     }
 
     bool is_key_just_pressed(int key) override{
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         auto it = key_just_pressed_frame.find(key);
         return it != key_just_pressed_frame.end() && it->second != 0 && (current_frame - it->second) <= JUST_BUFFER_FRAMES;
     }
 
     bool is_key_just_released(int key) override{
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         auto it = key_just_released_frame.find(key);
         return it != key_just_released_frame.end() && it->second != 0 && (current_frame - it->second) <= JUST_BUFFER_FRAMES;
     }
 
     bool is_mouse_pressed(int button) override{
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         auto it = mouse_state.find(button);
         return it != mouse_state.end() && it->second;
     }
     
     bool is_mouse_just_pressed(int button) override{
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         auto it = mouse_just_pressed_frame.find(button);
         return it != mouse_just_pressed_frame.end() && it->second != 0 && (current_frame - it->second) <= JUST_BUFFER_FRAMES;
     }
 
     bool is_mouse_just_released(int button) override{
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         auto it = mouse_just_released_frame.find(button);
         return it != mouse_just_released_frame.end() && it->second != 0 && (current_frame - it->second) <= JUST_BUFFER_FRAMES;
     }
 
     Vector2 get_mouse_position() override{
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         return mouse_position;
     }
 
     bool is_action_pressed(const String &action) override{
         if (!InputMap::get_singleton()) return false;
         const Array events = InputMap::get_singleton()->action_get_events(action);
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         for (int i = 0; i < events.size(); i++) {
             Ref<InputEvent> ev = events[i];
             if (!ev.is_valid()) continue;
@@ -262,7 +252,6 @@ public:
     bool is_action_just_pressed(const String &action) override{
         if (!InputMap::get_singleton()) return false;
         const Array events = InputMap::get_singleton()->action_get_events(action);
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         for (int i = 0; i < events.size(); i++) {
             Ref<InputEvent> ev = events[i];
             if (!ev.is_valid()) continue;
@@ -282,7 +271,6 @@ public:
     bool is_action_just_released(const String &action) override{
         if (!InputMap::get_singleton()) return false;
         const Array events = InputMap::get_singleton()->action_get_events(action);
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         for (int i = 0; i < events.size(); i++) {
             Ref<InputEvent> ev = events[i];
             if (!ev.is_valid()) continue;
@@ -303,7 +291,6 @@ public:
 
     Dictionary get_keys_pressed_detailed() override{
         Dictionary dict;
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         for (const auto &[key, down] : key_state) {
             if (!down) continue;
             String name = "Unknown";
@@ -317,7 +304,6 @@ public:
 
     Dictionary get_keys_just_pressed_detailed() override{
         Dictionary dict;
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         for (const auto &[key, frame] : key_just_pressed_frame) {
             if ((current_frame - frame) > 1) continue;
             String name = "Unknown";
@@ -331,7 +317,6 @@ public:
 
     Dictionary get_keys_just_released_detailed() override{
         Dictionary dict;
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         for (const auto &[key, frame] : key_just_released_frame) {
             if ((current_frame - frame) > 1) continue;
             String name = "Unknown";
@@ -342,7 +327,6 @@ public:
         }
         return dict;
     }
-
 
     // Modifiers
     bool is_alt_pressed() override{
@@ -392,7 +376,6 @@ public:
 
             if (ret > 0) {
                 std::lock_guard<std::recursive_mutex> lock(state_mutex);
-
                 if (keyboard_fd >= 0 && (fds[0].revents & POLLIN)) {
                     struct input_event ev;
 
@@ -435,7 +418,7 @@ public:
                     }
                 }
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(8));
         }
     #endif
     }

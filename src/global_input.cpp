@@ -5,7 +5,6 @@
 using namespace godot;
 
 bool GlobalInput::hook_started = false;
-uint64_t GlobalInput::current_frame = 0;
 bool GlobalInput::use_physics_frames = false;
 
 GlobalInput::GlobalInput() {}
@@ -98,6 +97,7 @@ void GlobalInput::stop_hook() {
 }
 
 void GlobalInput::_process(double delta) {
+    if (!hook_started) return;
     if (use_physics_frames) return;
     if (backend.is_valid()) {
         backend->poll_data();
@@ -106,6 +106,7 @@ void GlobalInput::_process(double delta) {
 }
 
 void GlobalInput::_physics_process(double delta) {
+    if (!hook_started) return;
     if (!use_physics_frames) return;
     if (backend.is_valid()) {
         backend->poll_data();
