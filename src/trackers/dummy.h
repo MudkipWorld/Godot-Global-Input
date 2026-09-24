@@ -27,6 +27,10 @@ public:
         mouse_state.clear();
         mouse_just_pressed_frame.clear();
         mouse_just_released_frame.clear();
+
+        joy_state.clear();
+        joy_just_pressed_frame.clear();
+        joy_just_released_frame.clear();
         
         running = true;
     }
@@ -98,24 +102,24 @@ public:
 
     // Godot InputMap Action Detection
 
-    bool is_action_pressed(const String &action) override{
+    bool is_action_pressed(const String &action, bool inclusive) override{
         if (!InputMap::get_singleton()) return false;
-        bool has = InputMap::get_singleton()->has_action(action);
-        if (!has) return false;
+        if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (inclusive) return any_action_event_matches(action, inclusive, 0);
         return Input::get_singleton()->is_action_pressed(action);
     }
 
-    bool is_action_just_pressed(const String &action) override{
+    bool is_action_just_pressed(const String &action, bool inclusive) override{
         if (!InputMap::get_singleton()) return false;
-        bool has = InputMap::get_singleton()->has_action(action);
-        if (!has) return false;
+        if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (inclusive) return any_action_event_matches(action, inclusive, 1);
         return Input::get_singleton()->is_action_just_pressed(action);
     }
 
-    bool is_action_just_released(const String &action) override{
+    bool is_action_just_released(const String &action, bool inclusive) override{
         if (!InputMap::get_singleton()) return false;
-        bool has = InputMap::get_singleton()->has_action(action);
-        if (!has) return false;
+        if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (inclusive) return any_action_event_matches(action, inclusive, 2);
         return Input::get_singleton()->is_action_just_released(action);
     }
     
@@ -162,58 +166,6 @@ public:
             else if (OS::get_singleton()->has_feature("linuxbsd")) dict["os"] = "Linux or BSD";
         }
         return dict;
-    }
-
-    // Modifiers
-
-    bool is_shift_pressed() {return Input::get_singleton()->is_key_pressed(KEY_SHIFT);}
-
-    bool is_ctrl_pressed() {return Input::get_singleton()->is_key_pressed(KEY_CTRL);}
-
-    bool is_alt_pressed() {return Input::get_singleton()->is_key_pressed(KEY_ALT);}
-
-    bool is_meta_pressed() { return Input::get_singleton()->is_key_pressed(KEY_META);}
-
-    bool modifiers_match(InputEvent *ev){
-        bool ev_shift = false;
-        bool ev_ctrl  = false;
-        bool ev_alt   = false;
-        bool ev_meta  = false;
-        int  ev_keycode = 0;
-
-        if (InputEventKey *key_ev = Object::cast_to<InputEventKey>(ev)) {
-            ev_shift   = key_ev->is_shift_pressed();
-            ev_ctrl    = key_ev->is_ctrl_pressed();
-            ev_alt     = key_ev->is_alt_pressed();
-            ev_meta    = key_ev->is_meta_pressed();
-            ev_keycode = key_ev->get_keycode();
-        } else if (InputEventMouseButton *mouse_ev = Object::cast_to<InputEventMouseButton>(ev)) {
-            ev_shift = mouse_ev->is_shift_pressed();
-            ev_ctrl  = mouse_ev->is_ctrl_pressed();
-            ev_alt   = mouse_ev->is_alt_pressed();
-            ev_meta  = mouse_ev->is_meta_pressed();
-        } else {
-            return true;
-        }
-
-        bool shift_now = is_shift_pressed();
-        bool ctrl_now  = is_ctrl_pressed();
-        bool alt_now   = is_alt_pressed();
-        bool meta_now  = is_meta_pressed();
-
-        if (ev_keycode == KEY_SHIFT || ev_keycode == KEY_CTRL || ev_keycode == KEY_ALT || ev_keycode == KEY_META) {
-            if (ev_keycode == KEY_SHIFT) ev_shift = shift_now;
-            if (ev_keycode == KEY_CTRL)  ev_ctrl  = ctrl_now;
-            if (ev_keycode == KEY_ALT)   ev_alt   = alt_now;
-            if (ev_keycode == KEY_META)  ev_meta  = meta_now;
-        }
-
-        if (ev_shift != shift_now) return false;
-        if (ev_ctrl  != ctrl_now)  return false;
-        if (ev_alt   != alt_now)   return false;
-        if (ev_meta  != meta_now)  return false;
-
-        return true;
     }
 
     // Misc

@@ -14,6 +14,7 @@
 #include "trackers/dummy.h"
 
 #include "godot_cpp/classes/node.hpp"
+#include "godot_cpp/classes/engine.hpp"
 #include "godot_cpp/core/class_db.hpp"
 #include <memory>
 #include <godot_cpp/classes/ref.hpp>
@@ -34,13 +35,38 @@ public:
     // Hook control
     void start_hook();
     void stop_hook();
+    void refresh_action_cache();
     void set_use_physics_frames(bool p_use) { use_physics_frames = p_use; }
     bool get_use_physics_frames() const { return use_physics_frames; }
+
+    // Joypad stick/trigger deadzone. Single source of truth: the GDScript
+    // binding UI reads it, so "a direction that can be bound" and "a direction
+    // that triggers" can never diverge.
+    void set_joy_deadzone(float p_deadzone) { GlobalInputCommon::set_joy_deadzone_value(p_deadzone); }
+    float get_joy_deadzone() const { return GlobalInputCommon::joy_deadzone; }
+
+    // Test hook (see GlobalInputCommon::joy_debug_enabled): drives joypad state
+    // from script so the judgement chain can be regression-tested without a
+    // physical pad. Godot offers no way to register a virtual joypad, and
+    // Input.is_joy_button_pressed() reports false while no device exists.
+    void set_debug_joy_enabled(bool p_enabled) { GlobalInputCommon::joy_debug_enabled = p_enabled; }
+    bool get_debug_joy_enabled() const { return GlobalInputCommon::joy_debug_enabled; }
+    void set_debug_joy_button(int p_button, bool p_pressed) { GlobalInputCommon::joy_debug_buttons[p_button] = p_pressed; }
+    void set_debug_joy_axis(int p_axis, float p_value) { GlobalInputCommon::joy_debug_axes[p_axis] = p_value; }
+    void clear_debug_joy() {
+        GlobalInputCommon::joy_debug_buttons.clear();
+        GlobalInputCommon::joy_debug_axes.clear();
+    }
 
 
     void _process(double delta) override;
     void _physics_process(double delta) override;
     void _input(const Ref<InputEvent> &event) override;
+
+    // Advances the per-frame snapshot at most once per engine frame.
+    // Also called lazily from the checks below, so the snapshot stays correct
+    // even when a GDScript attached to this node overrides _process.
+    void ensure_frame_state();
 
     // Input Checks
     Vector2 get_mouse_position();
@@ -51,10 +77,15 @@ public:
     bool is_mouse_just_pressed(int button);
     bool is_mouse_just_released(int button);
 
+    // Event Checks
+    bool is_input_pressed(const Ref<InputEvent> &event, bool inclusive);
+    bool is_input_just_pressed(const Ref<InputEvent> &event, bool inclusive);
+    bool is_input_just_released(const Ref<InputEvent> &event, bool inclusive);
+
     // Actions
-    bool is_action_pressed(const String &action_name);
-    bool is_action_just_pressed(const String &action_name);
-    bool is_action_just_released(const String &action_name);
+    bool is_action_pressed(const String &action_name, bool inclusive);
+    bool is_action_just_pressed(const String &action_name, bool inclusive);
+    bool is_action_just_released(const String &action_name, bool inclusive);
 
     // Get Details
     Dictionary get_keys_pressed_detailed();
@@ -85,6 +116,7 @@ private:
     static bool hook_started;
     static bool use_physics_frames;
     String selected_backend = "dummy";
+    int64_t last_frame_id = -1;
 
     void check_backend(){
 

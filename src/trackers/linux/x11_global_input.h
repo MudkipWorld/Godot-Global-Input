@@ -232,59 +232,16 @@ public:
         return mouse_position;
     }
 
-    bool is_action_pressed(const String &action) override{
-        if (!InputMap::get_singleton()) return false;
-        const Array events = InputMap::get_singleton()->action_get_events(action);
-        for (int i = 0; i < events.size(); i++) {
-            Ref<InputEvent> ev = events[i];
-            if (!ev.is_valid()) continue;
-            if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
-                if (!modifiers_match(key_ev)) continue; 
-                if (key_state[key_ev->get_keycode()]) return true;
-            } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-                if (!modifiers_match(mouse_ev)) continue; 
-                if (mouse_state[mouse_ev->get_button_index()]) return true;
-            }
-        }
-        return false;
+    bool is_action_pressed(const String &action, bool inclusive) override{
+        return any_action_event_matches(action, inclusive, 0);
     }
 
-    bool is_action_just_pressed(const String &action) override{
-        if (!InputMap::get_singleton()) return false;
-        const Array events = InputMap::get_singleton()->action_get_events(action);
-        for (int i = 0; i < events.size(); i++) {
-            Ref<InputEvent> ev = events[i];
-            if (!ev.is_valid()) continue;
-            if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
-                auto it = key_just_pressed_frame.find(key_ev->get_keycode());
-                if (!modifiers_match(key_ev)) continue; 
-                if (it != key_just_pressed_frame.end() && it->second != 0 && (current_frame - it->second) <= JUST_BUFFER_FRAMES) return true;
-            } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-                auto it = mouse_just_pressed_frame.find(mouse_ev->get_button_index());
-                if (!modifiers_match(mouse_ev)) continue; 
-                if (it != mouse_just_pressed_frame.end() && it->second != 0 && (current_frame - it->second) <= JUST_BUFFER_FRAMES) return true;
-            }
-        }
-        return false;
+    bool is_action_just_pressed(const String &action, bool inclusive) override{
+        return any_action_event_matches(action, inclusive, 1);
     }
 
-    bool is_action_just_released(const String &action) override{
-        if (!InputMap::get_singleton()) return false;
-        const Array events = InputMap::get_singleton()->action_get_events(action);
-        for (int i = 0; i < events.size(); i++) {
-            Ref<InputEvent> ev = events[i];
-            if (!ev.is_valid()) continue;
-            if (auto *key_ev = Object::cast_to<InputEventKey>(ev.ptr())) {
-                auto it = key_just_released_frame.find(key_ev->get_keycode());
-                if (!modifiers_match(key_ev)) continue; 
-                if (it != key_just_released_frame.end() && (current_frame - it->second) <= 1) return true;
-            } else if (auto *mouse_ev = Object::cast_to<InputEventMouseButton>(ev.ptr())) {
-                auto it = mouse_just_released_frame.find(mouse_ev->get_button_index());
-                if (!modifiers_match(mouse_ev)) continue; 
-                if (it != mouse_just_released_frame.end() && (current_frame - it->second) <= 1) return true;
-            }
-        }
-        return false;
+    bool is_action_just_released(const String &action, bool inclusive) override{
+        return any_action_event_matches(action, inclusive, 2);
     }
     
     // Debug Returns
@@ -328,34 +285,7 @@ public:
         return dict;
     }
 
-    // Modifiers
-    bool is_alt_pressed() override{
-        #ifdef __linux__
-        return is_key_pressed(PH_KEY_LEFTALT) || is_key_pressed(PH_KEY_RIGHTALT);
-        #endif
-        return false;
-    }
-
-    bool is_ctrl_pressed() override{
-        #ifdef __linux__
-        return is_key_pressed(PH_KEY_LEFTCTRL) || is_key_pressed(PH_KEY_RIGHTCTRL);
-        #endif
-        return false;
-    }
-
-    bool is_shift_pressed() override{
-        #ifdef __linux__
-        return is_key_pressed(PH_KEY_LEFTSHIFT) || is_key_pressed(PH_KEY_RIGHTSHIFT);
-        #endif
-        return false;
-    }
-
-    bool is_meta_pressed() override{
-        #ifdef __linux__
-        return is_key_pressed(PH_KEY_LEFTMETA) || is_key_pressed(PH_KEY_RIGHTMETA);
-        #endif
-        return false;
-    }
+    // Misc
     
     void handle_input(const Ref<InputEvent> &event) override {}
 

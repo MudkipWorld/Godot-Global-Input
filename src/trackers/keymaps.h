@@ -94,25 +94,62 @@ public:
         for (int i = KEY_A; i <= KEY_Z; i++) key_map[i] = i;
 
         for (int i = KEY_0; i <= KEY_9; i++) key_map[i] = i;
+        key_map[VK_CAPITAL] = KEY_CAPSLOCK;
+        key_map[VK_RETURN] = KEY_ENTER;
+        key_map[VK_ESCAPE] = KEY_ESCAPE;
+        key_map[VK_LWIN] = KEY_META;
+        key_map[VK_RWIN] = KEY_META;
+
         key_map[VK_OEM_1] = KEY_SEMICOLON;
         key_map[VK_OEM_2] = KEY_SLASH;
-        key_map[VK_OEM_3] = KEY_ASCIITILDE;
+        key_map[VK_OEM_3] = KEY_QUOTELEFT;
         key_map[VK_OEM_4] = KEY_BRACKETLEFT;
         key_map[VK_OEM_5] = KEY_BACKSLASH;
         key_map[VK_OEM_6] = KEY_BRACKETRIGHT;
-        key_map[VK_OEM_7] = KEY_QUOTEDBL;
-        key_map[VK_OEM_PLUS] = KEY_PLUS;
+        key_map[VK_OEM_7] = KEY_APOSTROPHE;
+        key_map[VK_OEM_102] = KEY_BACKSLASH;
+        key_map[VK_OEM_PLUS] = KEY_EQUAL;
         key_map[VK_OEM_COMMA] = KEY_COMMA;
         key_map[VK_OEM_MINUS] = KEY_MINUS;
         key_map[VK_OEM_PERIOD] = KEY_PERIOD;
-        key_map[VK_LBUTTON] = MOUSE_BUTTON_LEFT;
-        key_map[VK_RBUTTON] = MOUSE_BUTTON_RIGHT;
-        key_map[VK_MBUTTON] = MOUSE_BUTTON_MIDDLE;
-        key_map[VK_XBUTTON1] = MOUSE_BUTTON_XBUTTON1;
-        key_map[VK_XBUTTON2] = MOUSE_BUTTON_XBUTTON2;
+
+        apply_layout_mapping(key_map);
         #endif
     }
-    
+
+    void apply_layout_mapping(std::unordered_map<int, int>& key_map){
+        #ifdef _WIN32
+        HKL layout = GetKeyboardLayout(0);
+        if (!layout) return;
+
+        const int regional_vks[] = {
+            VK_OEM_1, VK_OEM_PLUS, VK_OEM_COMMA, VK_OEM_MINUS, VK_OEM_PERIOD,
+            VK_OEM_2, VK_OEM_3, VK_OEM_4, VK_OEM_5, VK_OEM_6, VK_OEM_7, VK_OEM_102
+        };
+
+        for (int vk : regional_vks) {
+            int mapped = translate_vk_to_keycode(vk, layout);
+            if (mapped > 0) key_map[vk] = mapped;
+        }
+
+        for (int vk = '0'; vk <= '9'; vk++) {
+            int mapped = translate_vk_to_keycode(vk, layout);
+            if (mapped > 0) key_map[vk] = mapped;
+        }
+        #endif
+    }
+
+    int translate_vk_to_keycode(int vk, HKL layout){
+        #ifdef _WIN32
+        UINT mapped = MapVirtualKeyExW((UINT)vk, MAPVK_VK_TO_CHAR, layout);
+        if (mapped == 0 || (mapped & 0x80000000)) return -1;
+        UINT character = mapped & 0xFFFF;
+        if (character < 32 || character > 126) return -1;
+        return (int)character;
+        #endif
+        return -1;
+    }
+
 };
 
 class LinuxKeyMap : public KeyMaps {
@@ -222,15 +259,20 @@ public:
         key_map[PH_KEY_0] = KEY_0;
         for (int i = 0; i <= PH_KEY_9 - PH_KEY_1; i++) key_map[PH_KEY_1 + i] = KEY_1 + i;
 
+        key_map[PH_KEY_ESC] = KEY_ESCAPE;
+        key_map[PH_KEY_CAPSLOCK] = KEY_CAPSLOCK;
+        key_map[PH_KEY_ENTER] = KEY_ENTER;
+
         // Regional keys
         key_map[PH_KEY_SEMICOLON] = KEY_SEMICOLON;
         key_map[PH_KEY_SLASH] = KEY_SLASH;
-        key_map[PH_KEY_GRAVE] = KEY_ASCIITILDE;
+        key_map[PH_KEY_GRAVE] = KEY_QUOTELEFT;
         key_map[PH_KEY_LEFTBRACE] = KEY_BRACKETLEFT;
         key_map[PH_KEY_BACKSLASH] = KEY_BACKSLASH;
         key_map[PH_KEY_RIGHTBRACE] = KEY_BRACKETRIGHT;
-        key_map[PH_KEY_APOSTROPHE] = KEY_QUOTEDBL;
-        key_map[PH_KEY_EQUAL] = KEY_PLUS;
+        key_map[PH_KEY_APOSTROPHE] = KEY_APOSTROPHE;
+        key_map[PH_KEY_102ND] = KEY_BACKSLASH;
+        key_map[PH_KEY_EQUAL] = KEY_EQUAL;
         key_map[PH_KEY_COMMA] = KEY_COMMA;
         key_map[PH_KEY_MINUS] = KEY_MINUS;
         key_map[PH_KEY_DOT] = KEY_PERIOD;

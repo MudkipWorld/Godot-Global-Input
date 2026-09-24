@@ -102,24 +102,29 @@ public:
 
     // Godot InputMap Action Detection
 
-    bool is_action_pressed(const String &action) override{
+    // These take the same inclusive flag as the other backends. They used to be
+    // declared without it, which stopped them from overriding the base class
+    // virtuals and made MacOSGlobalInput abstract - silently, because this header
+    // is not included by global_input.h yet.
+
+    bool is_action_pressed(const String &action, bool inclusive) override{
         if (!InputMap::get_singleton()) return false;
-        bool has = InputMap::get_singleton()->has_action(action);
-        if (!has) return false;
+        if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (inclusive) return any_action_event_matches(action, inclusive, 0);
         return Input::get_singleton()->is_action_pressed(action);
     }
 
-    bool is_action_just_pressed(const String &action) override{
+    bool is_action_just_pressed(const String &action, bool inclusive) override{
         if (!InputMap::get_singleton()) return false;
-        bool has = InputMap::get_singleton()->has_action(action);
-        if (!has) return false;
+        if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (inclusive) return any_action_event_matches(action, inclusive, 1);
         return Input::get_singleton()->is_action_just_pressed(action);
     }
 
-    bool is_action_just_released(const String &action) override{
+    bool is_action_just_released(const String &action, bool inclusive) override{
         if (!InputMap::get_singleton()) return false;
-        bool has = InputMap::get_singleton()->has_action(action);
-        if (!has) return false;
+        if (!InputMap::get_singleton()->has_action(action)) return false;
+        if (inclusive) return any_action_event_matches(action, inclusive, 2);
         return Input::get_singleton()->is_action_just_released(action);
     }
     
@@ -167,16 +172,6 @@ public:
         }
         return dict;
     }
-
-    // Modifiers
-
-    bool is_shift_pressed() {return Input::get_singleton()->is_key_pressed(KEY_SHIFT);}
-
-    bool is_ctrl_pressed() {return Input::get_singleton()->is_key_pressed(KEY_CTRL);}
-
-    bool is_alt_pressed() {return Input::get_singleton()->is_key_pressed(KEY_ALT);}
-
-    bool is_meta_pressed() { return Input::get_singleton()->is_key_pressed(KEY_META);}
 
     // Misc
 
