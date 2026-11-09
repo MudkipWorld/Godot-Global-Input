@@ -11,26 +11,24 @@ public:
     }
 
     // Start/ Stop Hook
+    void start(const String &custom_keyboard_name = "") override {
+            if (running) return;
 
-    void start() {
-        if (running) return;
+            if (!OS::get_singleton()) {
+                running = false;
+                return;
+            }
 
-        if (!OS::get_singleton()) {
-            running = false;
-            return;
-        }
+            key_state.clear();
+            key_just_pressed_frame.clear();
+            key_just_released_frame.clear();
 
-        key_state.clear();
-        key_just_pressed_frame.clear();
-        key_just_released_frame.clear();
+            mouse_state.clear();
+            mouse_just_pressed_frame.clear();
+            mouse_just_released_frame.clear();
 
-        mouse_state.clear();
-        mouse_just_pressed_frame.clear();
-        mouse_just_released_frame.clear();
-        
-        running = true;
+            running = true;
     }
-
     void stop(){
         if (!running) return;
         running = false;
@@ -69,6 +67,10 @@ public:
             (current_frame - it->second) <= JUST_BUFFER_FRAMES;
     }
 
+    //bool set_keyboard_device(const String &name) override {
+    //    return false;
+    //}
+
     // Mouse Input
 
     bool is_mouse_pressed(int button) override{
@@ -96,6 +98,15 @@ public:
         return DisplayServer::get_singleton()->mouse_get_position();
     }
 
+    Vector2 get_hook_mouse_position() override {
+        std::lock_guard<std::recursive_mutex> lock(state_mutex);
+        return mouse_position;
+    }
+
+    Vector2 get_virtual_mouse_position() override {
+        return DisplayServer::get_singleton()->mouse_get_position();
+    }
+
     // Godot InputMap Action Detection
 
     bool is_action_pressed(const String &action) override{
@@ -118,7 +129,7 @@ public:
         if (!has) return false;
         return Input::get_singleton()->is_action_just_released(action);
     }
-    
+
     // Debug Returns
 
     Dictionary get_keys_pressed_detailed() override{
@@ -130,7 +141,7 @@ public:
                 name = OS::get_singleton()->get_keycode_string((Key)key);
             dict[name] = true;
             if (OS::get_singleton()->has_feature("windows")) dict["os"] = "Windows";
-            else if (OS::get_singleton()->has_feature("linuxbsd")) dict["os"] = "Linux or BSD"; 
+            else if (OS::get_singleton()->has_feature("linuxbsd")) dict["os"] = "Linux or BSD";
         }
         return dict;
     }

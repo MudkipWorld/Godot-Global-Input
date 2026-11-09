@@ -36,7 +36,9 @@ public:
     ~GlobalInput();
 
     // Hook control
-    void start_hook();
+    //
+    // keyboardDeviceName does nothign on window
+    void start_hook(const String& keyboard_device_name = "");
     void stop_hook();
     void set_use_physics_frames(bool p_use) { use_physics_frames = p_use; }
     bool get_use_physics_frames() const { return use_physics_frames; }
@@ -48,12 +50,19 @@ public:
 
     // Input Checks
     Vector2 get_mouse_position();
+    Vector2 get_virtual_mouse_position();
+    void update_virtual_mouse(float sensitivity, Vector2 screen_pos, Vector2 screen_size, bool clamped);
+    void set_virtual_mouse_position(Vector2 p);
+    Vector2 get_hook_mouse_position();
+
     bool is_key_pressed(int keycode);
     bool is_key_just_pressed(int keycode);
     bool is_key_just_released(int keycode);
     bool is_mouse_pressed(int button);
     bool is_mouse_just_pressed(int button);
     bool is_mouse_just_released(int button);
+
+    //bool set_keyboard_device(const String &name);
 
     // Actions
     bool is_action_pressed(const String &action_name);
@@ -80,7 +89,6 @@ private:
     enum BackendType {
         BACKEND_WINDOWS,
         BACKEND_X11,
-        BACKEND_MACOS,
         BACKEND_DUMMY
     };
 
@@ -97,31 +105,31 @@ private:
             if (selected_backend == "windows") {
                 backend = Ref<WindowsGlobalInput>(memnew(WindowsGlobalInput));
                 active_backend = BACKEND_WINDOWS;
-            } 
+            }
             else {
                 backend = Ref<DummyGlobalInput>(memnew(DummyGlobalInput));
                 active_backend = BACKEND_DUMMY;
-            } 
+            }
 
         #endif
 
         #ifdef __linux__
             const char* wayland = std::getenv("WAYLAND_DISPLAY");
             if (wayland) {
-                godot::print_line("Wayland detected, skipping global inputs for now.");
-                backend = Ref<DummyGlobalInput>(memnew(DummyGlobalInput));
-                active_backend = BACKEND_DUMMY;
+                godot::print_line("Wayland detected, using x11");
+                backend = Ref<LinuxGlobalInput>(memnew(LinuxGlobalInput));
+                active_backend = BACKEND_X11;
                 return;
             }
             else {
                 if (selected_backend == "x11") {
                     backend = Ref<LinuxGlobalInput>(memnew(LinuxGlobalInput));
                     active_backend = BACKEND_X11;
-                } 
+                }
                 else {
                     backend = Ref<DummyGlobalInput>(memnew(DummyGlobalInput));
                     active_backend = BACKEND_DUMMY;
-                } 
+                }
             }
         #endif
 

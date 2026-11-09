@@ -10,14 +10,16 @@ public:
 
     // Start/ Stop Hook
 
-    void start() {
-        if (running) return;
+    void start() override {
+        if (running)
+            return;
 
         if (!OS::get_singleton()) {
             running = false;
             return;
         }
-        if (OS::get_singleton()->has_feature("editor_hint")){
+
+        if (OS::get_singleton()->has_feature("editor_hint")) {
             running = false;
             return;
         }
@@ -31,24 +33,38 @@ public:
         mouse_just_released_frame.clear();
 
         running = true;
+
         key_maps->get_platform_key_mapping(key_map);
-        hook_thread = std::thread(&poll_input, this);
+
+        hook_thread = std::thread(&WindowsGlobalInput::poll_input, this);
+
+        HWND hwnd = (HWND)DisplayServer::get_singleton()->window_get_native_handle(
+            DisplayServer::WINDOW_HANDLE);
+
+        if (!init_raw_input(hwnd))
+            ERR_PRINT("Failed to initialize raw input");
     }
 
-    void stop(){
-        if (running){
-            std::lock_guard<std::recursive_mutex> lock(state_mutex);
-            running = false;
-            if (hook_thread.joinable())
-                hook_thread.join();  
-        }
+    void stop() override {
+        if (!running)
+            return;
+
+        running = false;
+
+        if (raw_thread_id)
+            PostThreadMessage(raw_thread_id, WM_QUIT, 0, 0);
+
+        if (hook_thread.joinable())
+            hook_thread.join();
+
+        if (raw_thread.joinable())
+            raw_thread.join();
     }
 
     // Polling Data
 
     void poll_data() override {
         std::lock_guard<std::recursive_mutex> lock(state_mutex);
-
         for (auto &it : key_just_pressed_frame) {
             if (it.second == 0) {
                 it.second = current_frame;
@@ -128,8 +144,17 @@ public:
     }
 
     Vector2 get_mouse_position() override{
-        std::lock_guard<std::recursive_mutex> lock(state_mutex);
         return mouse_position;
+    }
+
+    Vector2 get_hook_mouse_position() override {
+        std::lock_guard<std::recursive_mutex> lock(state_mutex);
+        return mouse_hook_raw;
+    }
+
+    Vector2 get_virtual_mouse_position() override {
+        std::lock_guard<std::recursive_mutex> lock(state_mutex);
+        return mouse_virtual;
     }
 
     // Godot InputMap Action Detection
@@ -281,6 +306,265 @@ public:
 
     // Misc
 
+    bool is_captured() {
+        RECT r;
+        GetClipCursor(&r);
+        // If the cursor is clipped to a smaller area than the screen, it is captured/locked
+        return (r.right - r.left) < GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    }
+
+    bool init_raw_input(HWND hwnd){
+        raw_input_hwnd = hwnd;
+
+        if (!hwnd || !IsWindow(hwnd)){
+            ERR_PRINT("Invalid Godot window");
+            return false;
+        }
+
+        SetWindowLongPtr(
+            hwnd,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(this));
+
+        original_wndproc = (WNDPROC)SetWindowLongPtr(
+            hwnd,
+            GWLP_WNDPROC,
+            (LONG_PTR)RawInputWndProc);
+
+        if (!original_wndproc){
+            ERR_PRINT("Failed to subclass window");
+            return false;
+        }
+
+        // Mouse
+        RAWINPUTDEVICE rid_mouse{};
+        rid_mouse.usUsagePage = 0x01;
+        rid_mouse.usUsage = 0x02;
+        rid_mouse.dwFlags = RIDEV_INPUTSINK;
+        rid_mouse.hwndTarget = hwnd;
+
+        if (!RegisterRawInputDevices(&rid_mouse, 1, sizeof(rid_mouse))) {
+            ERR_PRINT("Mouse RID registration failed");
+            return false;
+        }
+
+        RAWINPUTDEVICE rid_pen{};
+        rid_pen.usUsagePage = 0x0D;
+        rid_pen.usUsage = 0x00;
+        rid_pen.dwFlags = RIDEV_INPUTSINK;
+        rid_pen.hwndTarget = hwnd;
+        has_last_pen = false;
+
+        RegisterRawInputDevices(&rid_pen, 1, sizeof(rid_pen));
+
+        raw_input_registered = true;
+        return true;
+    }
+    
+    void release_raw_input(){
+        if (!raw_input_registered)
+            return;
+
+        RAWINPUTDEVICE rid{};
+        rid.usUsagePage = 0x01;
+        rid.usUsage = 0x02;
+        rid.dwFlags = RIDEV_REMOVE;
+        rid.hwndTarget = nullptr;
+
+        RegisterRawInputDevices(&rid, 1, sizeof(rid));
+
+        if (raw_input_hwnd && original_wndproc){
+            SetWindowLongPtr(
+                raw_input_hwnd,
+                GWLP_WNDPROC,
+                (LONG_PTR)original_wndproc);
+
+            original_wndproc = nullptr;
+        }
+
+        raw_input_hwnd = nullptr;
+        raw_input_registered = false;
+    }
+
+    static LRESULT CALLBACK RawInputWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam){
+        auto *instance = reinterpret_cast<WindowsGlobalInput *>(
+            GetWindowLongPtr(hwnd, GWLP_USERDATA));
+
+        if (msg == WM_SETFOCUS || msg == WM_ACTIVATE) {
+            RAWINPUTDEVICE rid_mouse{};
+            rid_mouse.usUsagePage = 0x01;
+            rid_mouse.usUsage = 0x02;
+            rid_mouse.dwFlags = RIDEV_INPUTSINK;
+            rid_mouse.hwndTarget = hwnd;
+            RegisterRawInputDevices(&rid_mouse, 1, sizeof(rid_mouse));
+
+            RAWINPUTDEVICE rid_pen{};
+            rid_pen.usUsagePage = 0x0D;
+            rid_pen.usUsage = 0x00;
+            rid_pen.dwFlags = RIDEV_INPUTSINK;
+            rid_pen.hwndTarget = hwnd;
+            has_last_pen = false;
+
+            RegisterRawInputDevices(&rid_pen, 1, sizeof(rid_pen));
+        }
+
+        if (msg == WM_INPUT && instance){
+
+            UINT size = 0;
+            GetRawInputData((HRAWINPUT)lParam, RID_INPUT, nullptr, &size, sizeof(RAWINPUTHEADER));
+
+            std::vector<BYTE> buffer(size);
+
+            UINT result = GetRawInputData(
+                (HRAWINPUT)lParam,
+                RID_INPUT,
+                buffer.data(),
+                &size,
+                sizeof(RAWINPUTHEADER));
+
+            if (result == (UINT)-1){
+                ERR_PRINT(vformat("Error: %d", (int)GetLastError()));
+                return DefWindowProc(hwnd, msg, wParam, lParam);
+            }
+
+            RAWINPUT *raw = reinterpret_cast<RAWINPUT *>(buffer.data());
+
+            std::lock_guard<std::recursive_mutex> lock(instance->state_mutex);
+            const RAWMOUSE &m = raw->data.mouse;
+
+            if (raw->header.dwType == RIM_TYPEMOUSE){
+
+                has_last_pen = (m.usFlags == 3);
+                LONG x = m.lLastX;
+                LONG y = m.lLastY;
+
+                Vector2 current_pos ((float)x, (float)y);
+                Vector2 delta = current_pos - instance->last_pen_pos;
+                instance->last_pen_pos = current_pos;
+
+                bool captured = instance->is_captured();
+
+                if (captured){
+                    instance->mouse_delta.x += x;
+                    instance->mouse_delta.y += y;
+                }
+
+                else{
+                    if (has_last_pen){
+
+                        if (((m.usFlags & MOUSE_VIRTUAL_DESKTOP) != 0) && ((m.usFlags & MOUSE_MOVE_ABSOLUTE) != 0)){
+                            Vector2 converted = instance->virtual_absolute_mouse(m);
+                            Vector2 delta = mouse_virtual - converted;
+                            instance->set_virtual_mouse_position(converted);
+                            mouse_hook_raw -= delta;
+                            instance->mouse_delta = Vector2();
+                        }
+
+                        else if (((m.usFlags & MOUSE_VIRTUAL_DESKTOP) == 0) && ((m.usFlags & MOUSE_MOVE_ABSOLUTE) != 0)){
+                            Vector2 converted = instance->absolute_mouse(m);
+                            Vector2 delta = mouse_virtual - converted;
+                            instance->set_virtual_mouse_position(converted);
+                            mouse_hook_raw -= delta;
+                            instance->mouse_delta = Vector2();
+                        }
+                        else {
+                            POINT p;
+                            GetCursorPos(&p);
+                            Vector2 point = Vector2((float)p.x, (float)p.y);
+                            Vector2 delta = mouse_virtual - point;
+                            instance->set_virtual_mouse_position(point);
+                            mouse_hook_raw -= delta;
+                            instance->mouse_delta = Vector2();
+                        }
+                    }
+                    else {
+                        POINT p;
+                        GetCursorPos(&p);
+                        Vector2 point = Vector2((float)p.x, (float)p.y);
+                        Vector2 delta = mouse_virtual - point;
+                        instance->set_virtual_mouse_position(point);
+                        mouse_hook_raw -= delta;
+                        instance->mouse_delta = Vector2();
+                    }
+                }
+            }
+            else if (raw->header.dwType == RIM_TYPEHID) {
+
+                bool captured = instance->is_captured();
+                const RAWHID &hid = raw->data.hid;
+
+                const BYTE* data = hid.bRawData;
+                UINT dataSize = hid.dwSizeHid;
+
+                auto read_u16 = [&](int offset) -> int
+                {
+                    if (offset + 1 >= (int)dataSize)
+                        return 0;
+
+                    return (int)(data[offset] | (data[offset + 1] << 8));
+                };
+
+                int x = read_u16(0);
+                int y = read_u16(2);
+
+                std::lock_guard<std::recursive_mutex> lock(instance->state_mutex);
+
+                Vector2 current((float)x, (float)y);
+
+                if (!instance->has_last_pen)
+                {
+                    instance->last_pen_pos = current;
+                    instance->has_last_pen = true;
+                }
+                else
+                {
+                    if (captured){
+
+                        Vector2 delta = current - instance->last_pen_pos;
+                        instance->mouse_delta.x += delta.x;
+                        instance->mouse_delta.y += delta.y;
+                        instance->last_pen_pos = current;
+                    }
+                    else{
+                        POINT p;
+                        GetCursorPos(&p);
+                        Vector2 point = Vector2((float)p.x, (float)p.y);
+                        Vector2 delta = mouse_virtual - point;
+                        instance->set_virtual_mouse_position(point);
+                        mouse_hook_raw -= delta;
+                        instance->mouse_delta = Vector2();
+                    }
+
+                }
+            }
+        }
+
+        if (instance && instance->original_wndproc){
+            return CallWindowProc(instance->original_wndproc, hwnd, msg, wParam, lParam);
+        }
+
+        return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+
+    Vector2 virtual_absolute_mouse(const RAWMOUSE &m){
+        LONG vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        LONG vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        LONG vw = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        LONG vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+
+        return Vector2((float)m.lLastX * (vw - 1) / 65535.0f + vx,(float)m.lLastY * (vh - 1) / 65535.0f + vy);
+    }
+
+    Vector2 absolute_mouse(const RAWMOUSE &m){
+        LONG w = GetSystemMetrics(SM_CXSCREEN);
+        LONG h = GetSystemMetrics(SM_CYSCREEN);
+
+        float px = ((float)m.lLastX / 65535.0f) * (w - 1);
+        float py = ((float)m.lLastY / 65535.0f) * (h - 1);
+
+        return Vector2(px, py);
+    }
+
     void handle_input(const Ref<InputEvent> &event) override {};
 
     void poll_input() {
@@ -340,5 +624,14 @@ public:
         #endif
     }
 
+    private:
+        std::thread raw_thread;
+        HWND raw_input_hwnd = nullptr;
+        WNDPROC original_wndproc = nullptr;
+        DWORD raw_thread_id = 0;
+        bool raw_input_registered = false;
+        HMONITOR last_monitor = nullptr;
+
+        static inline std::once_flag raw_class_once;
 
 };

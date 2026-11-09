@@ -122,6 +122,21 @@ public:
         return mouse_position;
     }
 
+    Vector2 get_hook_mouse_position() override {
+        std::lock_guard<std::recursive_mutex> lock(state_mutex);
+        return mouse_hook_raw;
+    }
+
+    Vector2 get_virtual_mouse_position()  override {
+        return mouse_virtual;
+    }
+
+    void set_virtual_mouse_position(Vector2 p) override {
+        mouse_virtual = p;
+    }
+
+    void handle_input(const Ref<InputEvent> &event) override {}
+
     bool is_action_pressed(const String &action) override {
         if (!InputMap::get_singleton() || !InputMap::get_singleton()->has_action(action)) return false;
         const Array events = InputMap::get_singleton()->action_get_events(action);

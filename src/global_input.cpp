@@ -13,12 +13,22 @@ GlobalInput::~GlobalInput() {}
 
 void GlobalInput::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_mouse_position"), &GlobalInput::get_mouse_position);
+    ClassDB::bind_method(D_METHOD("get_virtual_mouse_position"), &GlobalInput::get_virtual_mouse_position);
+    ClassDB::bind_method(D_METHOD("get_hook_mouse_position"), &GlobalInput::get_hook_mouse_position);
+    ClassDB::bind_method(D_METHOD("update_virtual_mouse", "sensitivity", "screen_pos", "screen_size", "clamped"), &GlobalInput::update_virtual_mouse);
+    ClassDB::bind_method(D_METHOD("set_virtual_mouse_position", "point"), &GlobalInput::set_virtual_mouse_position);
+    //ClassDB::bind_method(D_METHOD("get_object_mouse_position", "origin", "fallback"), &GlobalInput::get_object_mouse_position);
+
+
     ClassDB::bind_method(D_METHOD("is_key_pressed", "key"), &GlobalInput::is_key_pressed);
     ClassDB::bind_method(D_METHOD("is_key_just_pressed", "key"), &GlobalInput::is_key_just_pressed);
     ClassDB::bind_method(D_METHOD("is_key_just_released", "key"), &GlobalInput::is_key_just_released);
     ClassDB::bind_method(D_METHOD("is_mouse_pressed", "button"), &GlobalInput::is_mouse_pressed);
     ClassDB::bind_method(D_METHOD("is_mouse_just_pressed", "button"), &GlobalInput::is_mouse_just_pressed);
     ClassDB::bind_method(D_METHOD("is_mouse_just_released", "button"), &GlobalInput::is_mouse_just_released);
+
+
+   // ClassDB::bind_method(D_METHOD("set_keyboard_device"), &GlobalInput::set_keyboard_device);
 
     ClassDB::bind_method(D_METHOD("is_action_pressed", "action"), &GlobalInput::is_action_pressed);
     ClassDB::bind_method(D_METHOD("is_action_just_pressed", "action"), &GlobalInput::is_action_just_pressed);
@@ -35,17 +45,17 @@ void GlobalInput::_bind_methods() {
 
     ClassDB::bind_method(D_METHOD("start_hook"), &GlobalInput::start_hook);
     ClassDB::bind_method(D_METHOD("stop_hook"), &GlobalInput::stop_hook);
-    
+
     ClassDB::bind_method(D_METHOD("set_backend", "backend_name"), &GlobalInput::set_backend);
     ClassDB::bind_method(D_METHOD("get_backend"), &GlobalInput::get_backend);
 
     ClassDB::bind_method(D_METHOD("set_use_physics_frames", "enabled"), &GlobalInput::set_use_physics_frames);
     ClassDB::bind_method(D_METHOD("get_use_physics_frames"), &GlobalInput::get_use_physics_frames);
 
-    ADD_PROPERTY(PropertyInfo(Variant::STRING, "backend", PROPERTY_HINT_ENUM, "windows,x11,macos,dummy"),
+    ADD_PROPERTY(PropertyInfo(Variant::STRING, "backend", PROPERTY_HINT_ENUM, "windows,x11, dummy"),
                  "set_backend", "get_backend");
 
-    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_physics_frames"), 
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_physics_frames"),
                  "set_use_physics_frames", "get_use_physics_frames");
 }
 
@@ -65,24 +75,32 @@ void GlobalInput::set_backend(const String &backend_name) {
 
     check_backend();
 
-    if (backend.is_valid()){
-        hook_started = true;
-        backend->start();
-    } 
-    else godot::print_line("Invalid Backend");
+    if (!backend.is_valid()) {
+        godot::print_line("Invalid Backend");
+    }
+    // Removed backend->start()
+
 }
 
 String GlobalInput::get_backend() { return selected_backend; }
 
-void GlobalInput::start_hook() {
+void GlobalInput::start_hook(const String& keyboard_device_name) {
     if (hook_started) return;
 
     check_backend();
 
     if (backend.is_valid()){
         hook_started = true;
+        #ifdef _WIN32
         backend->start();
-    } 
+        #endif
+        #ifdef __linux__
+        backend->start(keyboard_device_name);
+        #endif
+        #ifdef __APPLE__
+        backend->start();
+        #endif
+    }
     else godot::print_line("Invalid Backend");
 }
 
@@ -142,3 +160,13 @@ bool GlobalInput::is_shift_pressed() { return backend.is_valid() && backend->is_
 bool GlobalInput::is_ctrl_pressed() { return backend.is_valid() && backend->is_ctrl_pressed(); }
 bool GlobalInput::is_alt_pressed() { return backend.is_valid() && backend->is_alt_pressed(); }
 bool GlobalInput::is_meta_pressed() { return backend.is_valid() && backend->is_meta_pressed(); }
+
+Vector2 GlobalInput::get_virtual_mouse_position() { return backend.is_valid() ? backend->get_virtual_mouse_position() : Vector2(); }
+Vector2 GlobalInput::get_hook_mouse_position(){ return backend.is_valid() ? backend->get_hook_mouse_position() : Vector2(); }
+void GlobalInput::update_virtual_mouse(float sensitivity, Vector2 screen_pos, Vector2 screen_size, bool clamped) { if (backend.is_valid())  backend->update_virtual_mouse(sensitivity, screen_pos, screen_size, clamped); }
+//Vector2 GlobalInput::get_object_mouse_position(const Transform2D &origin, Vector2 fallback) {return backend.is_valid() ? backend->get_object_mouse_position(origin, fallback) : Vector2();}
+void GlobalInput::set_virtual_mouse_position(Vector2 p){if (backend.is_valid())  backend->set_virtual_mouse_position(p); }
+
+//bool GlobalInput::set_keyboard_device(const String &name) {
+//    return backend.is_valid() && backend->set_keyboard_device(name);
+//}

@@ -21,15 +21,30 @@
 
 using namespace godot;
 
+
+//for some reason it  doesnt fucking compile if i dont keep this in... - zoe
+namespace godot {
+    inline void print_line(const Variant &p_val) {
+        UtilityFunctions::print(p_val);
+    }
+}
+//////
+
 class GlobalInputCommon : public RefCounted{
 public:
+
     virtual ~GlobalInputCommon() {}
 
-    virtual void start() = 0;
+    virtual void start(const String &custom_keyboard_name = "") = 0;
+
+
     virtual void stop() = 0;
 
     virtual void increment_frame() = 0;
     virtual Vector2 get_mouse_position() = 0;
+
+    virtual Vector2 get_hook_mouse_position() = 0;
+    virtual Vector2 get_virtual_mouse_position() = 0;
 
     virtual bool is_key_pressed(int key) = 0;
     virtual bool is_key_just_pressed(int key) = 0;
@@ -54,6 +69,9 @@ public:
 
     virtual void poll_data() = 0;
     virtual void handle_input(const Ref<InputEvent> &event) = 0;
+
+
+   // virtual bool set_keyboard_device(const String &name) = 0;
 
     bool modifiers_match(InputEvent *ev){
         bool ev_shift = false;
@@ -97,6 +115,32 @@ public:
         return true;
     }
 
+    void update_virtual_mouse(float sensitivity, Vector2 screen_pos, Vector2 screen_size, bool clamped) {
+        std::lock_guard<std::recursive_mutex> lock(state_mutex);
+
+        Vector2 d = mouse_delta;
+        mouse_delta = Vector2(0, 0);
+        d *= sensitivity;
+
+        mouse_hook_raw += d;
+        mouse_virtual += d;
+        Vector2 min_bound = screen_pos;
+        Vector2 max_bound = screen_pos + screen_size;
+
+        if (clamped){
+            mouse_virtual.x = godot::Math::clamp(mouse_virtual.x, min_bound.x, max_bound.x);
+            mouse_virtual.y = godot::Math::clamp(mouse_virtual.y, min_bound.y, max_bound.y);
+        }
+        else{
+            mouse_virtual.x = godot::Math::max(mouse_virtual.x, 0.0f);
+            mouse_virtual.y = godot::Math::max(mouse_virtual.y, 0.0f);
+        }
+
+    }
+
+    virtual void set_virtual_mouse_position(Vector2 p) {
+        mouse_virtual = p;
+    }
 
     KeyMaps* key_maps = new KeyMaps();
 
@@ -112,7 +156,15 @@ public:
     static std::unordered_map<int, uint64_t> joy_just_pressed_frame;
     static std::unordered_map<int, uint64_t> joy_just_released_frame;
 
+    Vector2 mouse_delta;
+
+    static Vector2 last_pen_pos;
+    static bool has_last_pen;
+    static bool current_screen;
+
     static Vector2 mouse_position;
+    static Vector2 mouse_hook_raw;
+    static Vector2 mouse_virtual;
     static int wheel_delta;
     static uint64_t current_frame;
 
@@ -136,6 +188,14 @@ inline std::unordered_map<int, uint64_t> GlobalInputCommon::mouse_just_released_
 
 inline int GlobalInputCommon::wheel_delta = 0;
 inline Vector2 GlobalInputCommon::mouse_position;
+inline Vector2 GlobalInputCommon::mouse_hook_raw;
+inline Vector2 GlobalInputCommon::mouse_virtual;
+
+inline Vector2 GlobalInputCommon::last_pen_pos;
+inline bool GlobalInputCommon::has_last_pen = false;
+inline bool GlobalInputCommon::current_screen;
+
+
 inline uint64_t GlobalInputCommon::current_frame = 0;
 inline std::atomic<bool> GlobalInputCommon::running = false;
 inline std::thread GlobalInputCommon::hook_thread;
