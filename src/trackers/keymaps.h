@@ -15,6 +15,10 @@
 #include "unix_keys.h"
 #endif
 
+#ifdef __APPLE__
+#include <Carbon/Carbon.h>
+#endif
+
 using namespace godot;
 
 class KeyMaps{
@@ -248,80 +252,122 @@ public:
     void init_key_map(std::unordered_map<int, int>& key_map) override{
         #ifdef __APPLE__
         key_map.clear();
+        key_map[kVK_ANSI_A] = KEY_A;
+        key_map[kVK_ANSI_S] = KEY_S;
+        key_map[kVK_ANSI_D] = KEY_D;
+        key_map[kVK_ANSI_F] = KEY_F;
+        key_map[kVK_ANSI_H] = KEY_H;
+        key_map[kVK_ANSI_G] = KEY_G;
+        key_map[kVK_ANSI_Z] = KEY_Z;
+        key_map[kVK_ANSI_X] = KEY_X;
+        key_map[kVK_ANSI_C] = KEY_C;
+        key_map[kVK_ANSI_V] = KEY_V;
+        key_map[kVK_ANSI_B] = KEY_B;
+        key_map[kVK_ANSI_Q] = KEY_Q;
+        key_map[kVK_ANSI_W] = KEY_W;
+        key_map[kVK_ANSI_E] = KEY_E;
+        key_map[kVK_ANSI_R] = KEY_R;
+        key_map[kVK_ANSI_Y] = KEY_Y;
+        key_map[kVK_ANSI_T] = KEY_T;
+        key_map[kVK_ANSI_L] = KEY_L;
+        key_map[kVK_ANSI_J] = KEY_J;
+        key_map[kVK_ANSI_K] = KEY_K;
+        key_map[kVK_ANSI_O] = KEY_O;
+        key_map[kVK_ANSI_U] = KEY_U;
+        key_map[kVK_ANSI_I] = KEY_I;
+        key_map[kVK_ANSI_P] = KEY_P;
+        key_map[kVK_ANSI_N] = KEY_N;
+        key_map[kVK_ANSI_M] = KEY_M;
 
-        key_map[0] = KEY_A;
-        key_map[1] = KEY_S;
-        key_map[2] = KEY_D;
-        key_map[3] = KEY_F;
-        key_map[4] = KEY_H;
-        key_map[5] = KEY_G;
+        key_map[kVK_ANSI_0] = KEY_0;
+        key_map[kVK_ANSI_1] = KEY_1;
+        key_map[kVK_ANSI_2] = KEY_2;
+        key_map[kVK_ANSI_3] = KEY_3;
+        key_map[kVK_ANSI_4] = KEY_4;
+        key_map[kVK_ANSI_5] = KEY_5;
+        key_map[kVK_ANSI_6] = KEY_6;
+        key_map[kVK_ANSI_7] = KEY_7;
+        key_map[kVK_ANSI_8] = KEY_8;
+        key_map[kVK_ANSI_9] = KEY_9;
 
-        key_map[6] = KEY_Z;
-        key_map[7] = KEY_X;
-        key_map[8] = KEY_C;
-        key_map[9] = KEY_V;
+        key_map[kVK_ANSI_Equal] = KEY_EQUAL;
+        key_map[kVK_ANSI_Minus] = KEY_MINUS;
+        key_map[kVK_ANSI_RightBracket] = KEY_BRACKETRIGHT;
+        key_map[kVK_ANSI_LeftBracket] = KEY_BRACKETLEFT;
+        key_map[kVK_ANSI_Quote] = KEY_APOSTROPHE;
+        key_map[kVK_ANSI_Semicolon] = KEY_SEMICOLON;
+        key_map[kVK_ANSI_Backslash] = KEY_BACKSLASH;
+        key_map[kVK_ANSI_Comma] = KEY_COMMA;
+        key_map[kVK_ANSI_Slash] = KEY_SLASH;
+        key_map[kVK_ANSI_Period] = KEY_PERIOD;
+        key_map[kVK_ANSI_Grave] = KEY_QUOTELEFT;
+        key_map[kVK_ISO_Section] = KEY_SECTION;
 
-        key_map[11] = KEY_B;
-        key_map[12] = KEY_Q;
-        key_map[13] = KEY_W;
-        key_map[14] = KEY_E;
-        key_map[15] = KEY_R;
-        key_map[16] = KEY_Y;
-        key_map[17] = KEY_T;
+        key_map[kVK_Return] = KEY_ENTER;
+        key_map[kVK_Tab] = KEY_TAB;
+        key_map[kVK_Space] = KEY_SPACE;
+        key_map[kVK_Delete] = KEY_BACKSPACE;
+        key_map[kVK_Escape] = KEY_ESCAPE;
+        key_map[kVK_Command] = KEY_META;
+        key_map[kVK_RightCommand] = KEY_META;
+        key_map[kVK_Shift] = KEY_SHIFT;
+        key_map[kVK_RightShift] = KEY_SHIFT;
+        key_map[kVK_CapsLock] = KEY_CAPSLOCK;
+        key_map[kVK_Option] = KEY_ALT;
+        key_map[kVK_RightOption] = KEY_ALT;
+        key_map[kVK_Control] = KEY_CTRL;
+        key_map[kVK_RightControl] = KEY_CTRL;
 
-        key_map[18] = KEY_1;
-        key_map[19] = KEY_2;
-        key_map[20] = KEY_3;
-        key_map[21] = KEY_4;
-        key_map[22] = KEY_6;
-        key_map[23] = KEY_5;
-        key_map[24] = KEY_EQUAL;
-        key_map[25] = KEY_9;
-        key_map[26] = KEY_7;
-        key_map[27] = KEY_MINUS;
-        key_map[28] = KEY_8;
-        key_map[29] = KEY_0;
-        key_map[30] = KEY_BRACKETRIGHT;
-        key_map[31] = KEY_O;
-        key_map[32] = KEY_U;
-        key_map[33] = KEY_BRACKETLEFT;
-        key_map[34] = KEY_I;
-        key_map[35] = KEY_P;
+        key_map[kVK_F1] = KEY_F1;
+        key_map[kVK_F2] = KEY_F2;
+        key_map[kVK_F3] = KEY_F3;
+        key_map[kVK_F4] = KEY_F4;
+        key_map[kVK_F5] = KEY_F5;
+        key_map[kVK_F6] = KEY_F6;
+        key_map[kVK_F7] = KEY_F7;
+        key_map[kVK_F8] = KEY_F8;
+        key_map[kVK_F9] = KEY_F9;
+        key_map[kVK_F10] = KEY_F10;
+        key_map[kVK_F11] = KEY_F11;
+        key_map[kVK_F12] = KEY_F12;
+        key_map[kVK_F13] = KEY_F13;
+        key_map[kVK_F14] = KEY_F14;
+        key_map[kVK_F15] = KEY_F15;
+        key_map[kVK_F16] = KEY_F16;
+        key_map[kVK_F17] = KEY_F17;
+        key_map[kVK_F18] = KEY_F18;
+        key_map[kVK_F19] = KEY_F19;
+        key_map[kVK_F20] = KEY_F20;
 
-        key_map[36] = KEY_ENTER;
-        key_map[37] = KEY_L;
-        key_map[38] = KEY_J;
-        key_map[39] = KEY_QUOTEDBL;
-        key_map[40] = KEY_K;
-        key_map[41] = KEY_SEMICOLON;
-        key_map[42] = KEY_BACKSLASH;
+        key_map[kVK_Help] = KEY_INSERT;
+        key_map[kVK_Home] = KEY_HOME;
+        key_map[kVK_PageUp] = KEY_PAGEUP;
+        key_map[kVK_ForwardDelete] = KEY_DELETE;
+        key_map[kVK_End] = KEY_END;
+        key_map[kVK_PageDown] = KEY_PAGEDOWN;
+        key_map[kVK_LeftArrow] = KEY_LEFT;
+        key_map[kVK_RightArrow] = KEY_RIGHT;
+        key_map[kVK_DownArrow] = KEY_DOWN;
+        key_map[kVK_UpArrow] = KEY_UP;
 
-        key_map[43] = KEY_COMMA;
-        key_map[44] = KEY_SLASH;
-        key_map[45] = KEY_N;
-        key_map[46] = KEY_M;
-        key_map[47] = KEY_PERIOD;
-
-        key_map[49] = KEY_SPACE;
-
-        key_map[50] = KEY_ASCIITILDE;
-        key_map[51] = KEY_BACKSPACE;
-        key_map[52] = KEY_KP_ENTER;
-        key_map[53] = KEY_ESCAPE;
-
-        key_map[55] = KEY_META;
-        key_map[56] = KEY_SHIFT;
-        key_map[57] = KEY_CAPSLOCK;
-        key_map[58] = KEY_ALT;
-        key_map[59] = KEY_CTRL;
-        key_map[60] = KEY_SHIFT;
-        key_map[61] = KEY_ALT;
-        key_map[62] = KEY_CTRL;
-
-        key_map[123] = KEY_LEFT;
-        key_map[124] = KEY_RIGHT;
-        key_map[125] = KEY_DOWN;
-        key_map[126] = KEY_UP;
+        key_map[kVK_ANSI_KeypadDecimal] = KEY_KP_PERIOD;
+        key_map[kVK_ANSI_KeypadMultiply] = KEY_KP_MULTIPLY;
+        key_map[kVK_ANSI_KeypadPlus] = KEY_KP_ADD;
+        key_map[kVK_ANSI_KeypadClear] = KEY_NUMLOCK;
+        key_map[kVK_ANSI_KeypadDivide] = KEY_KP_DIVIDE;
+        key_map[kVK_ANSI_KeypadEnter] = KEY_KP_ENTER;
+        key_map[kVK_ANSI_KeypadMinus] = KEY_KP_SUBTRACT;
+        key_map[kVK_ANSI_KeypadEquals] = KEY_EQUAL;
+        key_map[kVK_ANSI_Keypad0] = KEY_KP_0;
+        key_map[kVK_ANSI_Keypad1] = KEY_KP_1;
+        key_map[kVK_ANSI_Keypad2] = KEY_KP_2;
+        key_map[kVK_ANSI_Keypad3] = KEY_KP_3;
+        key_map[kVK_ANSI_Keypad4] = KEY_KP_4;
+        key_map[kVK_ANSI_Keypad5] = KEY_KP_5;
+        key_map[kVK_ANSI_Keypad6] = KEY_KP_6;
+        key_map[kVK_ANSI_Keypad7] = KEY_KP_7;
+        key_map[kVK_ANSI_Keypad8] = KEY_KP_8;
+        key_map[kVK_ANSI_Keypad9] = KEY_KP_9;
         #endif
     }
 

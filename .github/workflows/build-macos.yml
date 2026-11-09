@@ -1,0 +1,61 @@
+name: Build macOS
+
+# Builds the universal (arm64 + x86_64) macOS libraries on GitHub's macOS
+# runners, so the extension can be built and released without owning a Mac.
+# The resulting dylibs are uploaded as workflow artifacts.
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - "godot-cpp"
+      - ".gitmodules"
+      - ".github/workflows/build-macos.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "godot-cpp"
+      - ".gitmodules"
+      - ".github/workflows/build-macos.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: macOS ${{ matrix.build }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build: [debug, release]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SCons
+        run: python -m pip install scons
+
+      - name: Build
+        working-directory: src
+        run: scons platform=macos build=${{ matrix.build }} -j"$(sysctl -n hw.ncpu)"
+
+      - name: Verify library
+        working-directory: src/bin/macos
+        run: |
+          lib="GlobalInput.macos.template_${{ matrix.build }}.universal.dylib"
+          lipo "$lib" -verify_arch arm64 x86_64
+          nm -gU "$lib" | grep global_input_library_init
+          otool -L "$lib"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GlobalInput-macos-${{ matrix.build }}
+          path: src/bin/macos/GlobalInput.macos.template_${{ matrix.build }}.universal.dylib
+          if-no-files-found: error
