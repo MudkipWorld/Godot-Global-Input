@@ -20,7 +20,7 @@ public:
         stop();
     }
 
-    void start() override {
+    void start(const String &custom_keyboard_name = "") override {
         if (running) return;
         if (!OS::get_singleton() || OS::get_singleton()->has_feature("editor_hint")) {
             running = false;
@@ -134,8 +134,6 @@ public:
     void set_virtual_mouse_position(Vector2 p) override {
         mouse_virtual = p;
     }
-
-    void handle_input(const Ref<InputEvent> &event) override {}
 
     bool is_action_pressed(const String &action) override {
         if (!InputMap::get_singleton() || !InputMap::get_singleton()->has_action(action)) return false;

@@ -10,7 +10,7 @@ public:
 
     // Start/ Stop Hook
 
-    void start() override {
+    void start(const String &custom_keyboard_name = "") override {
         if (running)
             return;
 

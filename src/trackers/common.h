@@ -22,53 +22,45 @@
 using namespace godot;
 
 
-//for some reason it  doesnt fucking compile if i dont keep this in... - zoe
-namespace godot {
-    inline void print_line(const Variant &p_val) {
-        UtilityFunctions::print(p_val);
-    }
-}
-//////
-
 class GlobalInputCommon : public RefCounted{
 public:
 
     virtual ~GlobalInputCommon() {}
 
-    virtual void start(const String &custom_keyboard_name = "") = 0;
+    virtual void start(const String &custom_keyboard_name = "") {};
 
 
-    virtual void stop() = 0;
+    virtual void stop() {};
 
-    virtual void increment_frame() = 0;
-    virtual Vector2 get_mouse_position() = 0;
+    virtual void increment_frame() {};
+    virtual Vector2 get_mouse_position() {return Vector2(0,0);};
 
-    virtual Vector2 get_hook_mouse_position() = 0;
-    virtual Vector2 get_virtual_mouse_position() = 0;
+    virtual Vector2 get_hook_mouse_position() {return Vector2(0,0);};
+    virtual Vector2 get_virtual_mouse_position() {return Vector2(0,0);};
 
-    virtual bool is_key_pressed(int key) = 0;
-    virtual bool is_key_just_pressed(int key) = 0;
-    virtual bool is_key_just_released(int key) = 0;
+    virtual bool is_key_pressed(int key) {return false;};
+    virtual bool is_key_just_pressed(int key) {return false;};
+    virtual bool is_key_just_released(int key) {return false;};
 
-    virtual bool is_mouse_pressed(int button) = 0;
-    virtual bool is_mouse_just_pressed(int button) = 0;
-    virtual bool is_mouse_just_released(int button) = 0;
+    virtual bool is_mouse_pressed(int button) {return false;};
+    virtual bool is_mouse_just_pressed(int button) {return false;};
+    virtual bool is_mouse_just_released(int button) {return false;};
 
-    virtual bool is_action_pressed(const String &action) = 0;
-    virtual bool is_action_just_pressed(const String &action) = 0;
-    virtual bool is_action_just_released(const String &action) = 0;
+    virtual bool is_action_pressed(const String &action) { return false;};
+    virtual bool is_action_just_pressed(const String &action) {return false;};
+    virtual bool is_action_just_released(const String &action) {return false;};
 
-    virtual Dictionary get_keys_pressed_detailed() = 0;
-    virtual Dictionary get_keys_just_pressed_detailed() = 0;
-    virtual Dictionary get_keys_just_released_detailed() = 0;
+    virtual Dictionary get_keys_pressed_detailed() { return {};};
+    virtual Dictionary get_keys_just_pressed_detailed() {return {};};
+    virtual Dictionary get_keys_just_released_detailed() {return {};};
 
-    virtual bool is_alt_pressed() = 0;
-    virtual bool is_ctrl_pressed() = 0;
-    virtual bool is_shift_pressed() = 0;
-    virtual bool is_meta_pressed() = 0;
+    virtual bool is_alt_pressed() {return false;};
+    virtual bool is_ctrl_pressed() {return false;};
+    virtual bool is_shift_pressed() {return false;};
+    virtual bool is_meta_pressed() {return false;};
 
-    virtual void poll_data() = 0;
-    virtual void handle_input(const Ref<InputEvent> &event) = 0;
+    virtual void poll_data() {};
+    virtual void handle_input(const Ref<InputEvent> &event) {};
 
 
    // virtual bool set_keyboard_device(const String &name) = 0;
