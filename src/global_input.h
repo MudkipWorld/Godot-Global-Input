@@ -89,6 +89,7 @@ private:
     enum BackendType {
         BACKEND_WINDOWS,
         BACKEND_X11,
+        BACKEND_MACOS,
         BACKEND_DUMMY
     };
 
