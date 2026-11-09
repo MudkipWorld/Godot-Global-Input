@@ -42,7 +42,7 @@ void GlobalInput::_bind_methods() {
     ClassDB::bind_method(D_METHOD("set_use_physics_frames", "enabled"), &GlobalInput::set_use_physics_frames);
     ClassDB::bind_method(D_METHOD("get_use_physics_frames"), &GlobalInput::get_use_physics_frames);
 
-    ADD_PROPERTY(PropertyInfo(Variant::STRING, "backend", PROPERTY_HINT_ENUM, "windows,x11, dummy"),
+    ADD_PROPERTY(PropertyInfo(Variant::STRING, "backend", PROPERTY_HINT_ENUM, "windows,x11,macos,dummy"),
                  "set_backend", "get_backend");
 
     ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_physics_frames"), 

@@ -31,8 +31,8 @@ elif platform.startswith("linux"):
     cc = "gcc"
 
 elif platform.startswith("mac"):
-    cxx = "o64-clang++"
-    cc = "o64-clang"
+    cxx = "clang++"
+    cc = "clang"
 
 else:
     print(f"Unsupported target platform: {platform}")
@@ -117,31 +117,22 @@ elif platform.startswith("linux"):
     env.Append(CXXFLAGS=["-std=c++17", "-O2", "-fPIC"])
 
 elif platform.startswith("mac"):
+    # Use godot-cpp's own build environment so the extension is compiled with the
+    # same defines and flags as the bindings (MACOS_ENABLED, HOT_RELOAD_ENABLED, ...).
+    # Mismatched defines break the link (e.g. thread_local symbols in wrapped.hpp).
+    ARGUMENTS["platform"] = "macos"
+    ARGUMENTS["target"] = "template_debug" if build_type == "debug" else "template_release"
+    ARGUMENTS.setdefault("arch", "universal")
+    ARGUMENTS.setdefault("macos_deployment_target", "10.15")
+    env = SConscript(f"{godot_cpp_path}/SConstruct")
+
     output_dir = "bin/macos"
     os.makedirs(output_dir, exist_ok=True)
+    lib_suffix = env["suffix"].lstrip(".")
+    env["SHLIBPREFIX"] = ""
 
-    lib_suffix = "macos.template_debug.x86_64" if build_type == "debug" else "macos.template_release.x86_64"
-
-    env["SHLIBSUFFIX"] = ".dylib"
-
-    env.Append(CPPPATH=[
-        f"{fixpath(godot_cpp_path)}/include",
-        f"{fixpath(godot_cpp_path)}/include/godot_cpp",
-        f"{fixpath(godot_cpp_path)}/gen/include",
-        f"{fixpath(godot_cpp_path)}/gdextension",
-        "src"
-    ])
-
-    env.Append(LIBPATH=[
-        f"{fixpath(godot_cpp_path)}/bin",
-    ])
-
-    env.Append(LIBS=[
-        f"godot-cpp.{lib_suffix}",
-    ])
-
-    env.Append(CXXFLAGS=["-std=c++17", "-O2", "-fPIC"])
-    env.Append(LINKFLAGS=["-shared", "-framework", "CoreFoundation", "-framework", "ApplicationServices"])
+    env.Append(CPPPATH=["src"])
+    env.Append(LINKFLAGS=["-framework", "CoreFoundation", "-framework", "ApplicationServices", "-framework", "Carbon"])
 
 target_name = (
     f"bin/windows/GlobalInput.{lib_suffix}.dll" if platform.startswith("win")
@@ -149,4 +140,7 @@ target_name = (
     else f"bin/macos/GlobalInput.{lib_suffix}.dylib"
 )
 
-env.SharedLibrary(target=target_name, source=sources)
+library = env.SharedLibrary(target=target_name, source=sources)
+if platform.startswith("mac"):
+    # godot-cpp calls Default() on its own library, so the extension must be a default target too.
+    Default(library)

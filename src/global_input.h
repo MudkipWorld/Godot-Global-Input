@@ -11,6 +11,10 @@
 #include "trackers/linux/x11_global_input.h"
 #endif
 
+#ifdef __APPLE__
+#include "trackers/macos/macos_global_input.h"
+#endif
+
 #include "trackers/dummy.h"
 
 #include "godot_cpp/classes/node.hpp"
@@ -76,6 +80,7 @@ private:
     enum BackendType {
         BACKEND_WINDOWS,
         BACKEND_X11,
+        BACKEND_MACOS,
         BACKEND_DUMMY
     };
 
@@ -117,6 +122,17 @@ private:
                     backend = Ref<DummyGlobalInput>(memnew(DummyGlobalInput));
                     active_backend = BACKEND_DUMMY;
                 } 
+            }
+        #endif
+
+        #ifdef __APPLE__
+            if (selected_backend == "macos") {
+                backend = Ref<MacOSGlobalInput>(memnew(MacOSGlobalInput));
+                active_backend = BACKEND_MACOS;
+            }
+            else {
+                backend = Ref<DummyGlobalInput>(memnew(DummyGlobalInput));
+                active_backend = BACKEND_DUMMY;
             }
         #endif
 
